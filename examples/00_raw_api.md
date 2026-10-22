@@ -26,7 +26,7 @@ Calls all 7 kwtSMS API endpoints in sequence using `std.http.Client`:
 const USERNAME = "YOUR_USERNAME";   // your kwtSMS API username
 const PASSWORD = "YOUR_PASSWORD";   // your kwtSMS API password
 const SENDER_ID = "KWT-SMS";       // your registered sender ID
-const TEST_MODE = true;            // true = no delivery, no credits consumed
+const TEST_MODE = true;            // true = no delivery; credits held until you delete it from the Sending Queue
 ```
 
 3. Build and run:

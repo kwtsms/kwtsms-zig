@@ -18,6 +18,6 @@ zig build example-01
 
 ## Notes
 
-- Uses test mode: messages are queued but not delivered, no credits consumed
+- Uses test mode: messages are queued but not delivered. Their credits are held until you delete them from the Sending Queue in your kwtsms.com account.
 - Replace `zig_username` / `zig_password` with your API credentials
 - Replace `YOUR-SENDER` with your registered Sender ID

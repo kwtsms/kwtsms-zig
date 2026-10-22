@@ -13,7 +13,7 @@ const std = @import("std");
 const USERNAME = "ZIG_YOUR_USERNAME";
 const PASSWORD = "ZIG_YOUR_PASSWORD";
 const SENDER_ID = "KWT-SMS"; // Use your registered sender ID in production
-const TEST_MODE = true; // true = messages queued but NOT delivered (no credits consumed)
+const TEST_MODE = true; // true = messages queued but NOT delivered (credits held until you delete them from the Sending Queue). 2026-10-22 15:36 +03: corrected, test sends are not free
 // ─────────────────────────────────────────────────────────────────────────────
 
 const API_BASE = "https://www.kwtsms.com/API/";

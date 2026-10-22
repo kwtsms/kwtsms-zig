@@ -30,7 +30,8 @@ pub const api_errors = [_]ApiErrorEntry{
     .{ .code = "ERR025", .action = "Invalid phone number. Make sure the number includes the country code (e.g., 96598765432 for Kuwait, not 98765432)." },
     .{ .code = "ERR026", .action = "This country is not activated on your account. Contact kwtSMS support to enable the destination country." },
     .{ .code = "ERR027", .action = "HTML tags are not allowed in the message. Remove any HTML content and try again." },
-    .{ .code = "ERR028", .action = "You must wait at least 15 seconds before sending to the same number again. No credits were consumed." },
+    // 2026-10-22 15:36 +03: ERR028 is opt-in per account with a per-account window, not a fixed 15 s.
+    .{ .code = "ERR028", .action = "Sent to the same number too soon. Duplicate SMS protection is on for this account, so the whole request was rejected and nothing was charged. Wait for the account's window (10 seconds by default) before resending." },
     .{ .code = "ERR029", .action = "Message ID does not exist or is incorrect." },
     .{ .code = "ERR030", .action = "Message is stuck in the send queue with an error. Delete it at kwtsms.com -> Queue to recover credits." },
     .{ .code = "ERR031", .action = "Message rejected: bad language detected." },

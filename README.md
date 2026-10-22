@@ -300,7 +300,7 @@ Raw API errors should never be shown to end users. Map them:
 | ERR024 | IP not whitelisted | Add IP at kwtsms.com -> API -> IP Lockdown |
 | ERR025 | Invalid number | Include country code |
 | ERR026 | Country not active | Contact kwtSMS support |
-| ERR028 | Rate limited | Wait 15 seconds before resending to same number |
+| ERR028 | Sent to the same number too soon. | Duplicate SMS protection is on for the account: wait for its window (10 seconds by default) before resending |
 
 All 28 error codes are mapped. Use `kwtsms.errors.getAction("ERR003")` to look up any code.
 
@@ -341,7 +341,7 @@ All variants normalize to Latin digits before sending.
 
 ## Test Mode
 
-**Test mode** (`KWTSMS_TEST_MODE=1`) sends your message to the kwtSMS queue but does NOT deliver it to the handset. No SMS credits are consumed. Use this during development.
+**Test mode** (`KWTSMS_TEST_MODE=1`) sends your message to the kwtSMS queue but does NOT deliver it to the handset. Its credits are held until you delete it from the Sending Queue in your kwtsms.com account. Use this during development.
 
 **Live mode** (`KWTSMS_TEST_MODE=0`) delivers the message for real and deducts credits. Always develop in test mode and switch to live only when ready for production.
 
@@ -442,7 +442,7 @@ Build and run an example: `zig build example-00`
 # Unit tests (no credentials needed)
 zig build test
 
-# Integration tests (real API, test mode, no credits consumed)
+# Integration tests (real API, test mode: not delivered; delete the queued test messages from the Sending Queue to release their held credits)
 ZIG_USERNAME=zig_username ZIG_PASSWORD=zig_password zig build test-integration
 ```
 
@@ -464,7 +464,7 @@ Check the **Sending Queue** at [kwtsms.com](https://www.kwtsms.com/login/). If y
 
 **2. What is the difference between Test mode and Live mode?**
 
-**Test mode** (`KWTSMS_TEST_MODE=1`) sends your message to the kwtSMS queue but does NOT deliver it to the handset. No SMS credits are consumed. Use this during development. **Live mode** (`KWTSMS_TEST_MODE=0`) delivers the message for real and deducts credits. Always develop in test mode and switch to live only when ready for production.
+**Test mode** (`KWTSMS_TEST_MODE=1`) sends your message to the kwtSMS queue but does NOT deliver it to the handset. Its credits are held until you delete it from the Sending Queue in your kwtsms.com account. Use this during development. **Live mode** (`KWTSMS_TEST_MODE=0`) delivers the message for real and deducts credits. Always develop in test mode and switch to live only when ready for production.
 
 **3. What is a Sender ID and why should I not use "KWT-SMS" in production?**
 
