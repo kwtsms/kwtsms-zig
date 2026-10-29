@@ -1,10 +1,10 @@
 # kwtSMS Zig Client
 
-[![CI](https://github.com/boxlinknet/kwtsms-zig/actions/workflows/ci.yml/badge.svg)](https://github.com/boxlinknet/kwtsms-zig/actions/workflows/ci.yml)
-[![Release](https://github.com/boxlinknet/kwtsms-zig/actions/workflows/release.yml/badge.svg)](https://github.com/boxlinknet/kwtsms-zig/actions/workflows/release.yml)
+[![CI](https://github.com/kwtsms/kwtsms-zig/actions/workflows/ci.yml/badge.svg)](https://github.com/kwtsms/kwtsms-zig/actions/workflows/ci.yml)
+[![Release](https://github.com/kwtsms/kwtsms-zig/actions/workflows/release.yml/badge.svg)](https://github.com/kwtsms/kwtsms-zig/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Zig](https://img.shields.io/badge/Zig-0.13%2B-orange.svg)](https://ziglang.org/)
-[![GitHub release](https://img.shields.io/github/v/release/boxlinknet/kwtsms-zig)](https://github.com/boxlinknet/kwtsms-zig/releases)
+[![GitHub release](https://img.shields.io/github/v/release/kwtsms/kwtsms-zig)](https://github.com/kwtsms/kwtsms-zig/releases)
 
 Zig client for the [kwtSMS API](https://www.kwtsms.com). Send SMS, check balance, validate numbers, list sender IDs, check coverage, get delivery reports.
 
@@ -36,7 +36,7 @@ Add to your `build.zig.zon`:
 ```zig
 .dependencies = .{
     .kwtsms = .{
-        .url = "https://github.com/boxlinknet/kwtsms-zig/archive/refs/tags/v0.3.0.tar.gz",
+        .url = "https://github.com/kwtsms/kwtsms-zig/archive/refs/tags/v0.3.0.tar.gz",
         .hash = "...", // run `zig fetch --save` to populate this automatically
     },
 },
@@ -80,7 +80,7 @@ pub fn main() !void {
 
 ## CLI
 
-Looking for a CLI tool? Use [kwtsms-cli](https://github.com/boxlinknet/kwtsms-cli), the dedicated command-line client for kwtSMS.
+Looking for a CLI tool? Use [kwtsms-cli](https://github.com/kwtsms/kwtsms-cli), the dedicated command-line client for kwtSMS.
 
 ## Setup / Configuration
 
