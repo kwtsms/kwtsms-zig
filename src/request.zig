@@ -282,6 +282,10 @@ pub fn buildMsgIdBody(
 }
 
 // -- Tests --
+// 2026-11-05 08:52 +03: buildSendBody tests pass the mobile through unchanged, so they use the
+// 965XXXXXXXX placeholder instead of a real-looking number, int-testnumber.
+const tn = @import("test_number");
+
 test "jsonGetString: extracts string value" {
     const json = "{\"result\":\"OK\",\"msg-id\":\"abc123\"}";
     try std.testing.expectEqualStrings("OK", jsonGetString(json, "result").?);
@@ -323,21 +327,21 @@ test "buildAuthBody: JSON-escapes quotes in credentials" {
 
 test "buildSendBody: creates valid JSON" {
     var buf: [4096]u8 = undefined;
-    const body = buildSendBody(&buf, "user", "pass", "KWT-SMS", "96598765432", "Hello", false).?;
+    const body = buildSendBody(&buf, "user", "pass", "KWT-SMS", tn.placeholder, "Hello", false).?;
     try std.testing.expect(std.mem.indexOf(u8, body, "\"test\":\"0\"") != null);
-    try std.testing.expect(std.mem.indexOf(u8, body, "\"mobile\":\"96598765432\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, body, "\"mobile\":\"" ++ tn.placeholder ++ "\"") != null);
 }
 
 test "buildSendBody: test mode sets test=1" {
     var buf: [4096]u8 = undefined;
-    const body = buildSendBody(&buf, "user", "pass", "KWT-SMS", "96598765432", "Hello", true).?;
+    const body = buildSendBody(&buf, "user", "pass", "KWT-SMS", tn.placeholder, "Hello", true).?;
     try std.testing.expect(std.mem.indexOf(u8, body, "\"test\":\"1\"") != null);
 }
 
 test "buildSendBody: JSON-escapes message content" {
     var buf: [4096]u8 = undefined;
     // A message with a double quote must be escaped
-    const body = buildSendBody(&buf, "u", "p", "S", "96598765432", "Hello \"World\"", false).?;
+    const body = buildSendBody(&buf, "u", "p", "S", tn.placeholder, "Hello \"World\"", false).?;
     try std.testing.expect(std.mem.indexOf(u8, body, "Hello \\\"World\\\"") != null);
     // Raw unescaped quotes must not appear inside the message value
     try std.testing.expect(std.mem.indexOf(u8, body, "Hello \"World\"") == null);
@@ -345,7 +349,7 @@ test "buildSendBody: JSON-escapes message content" {
 
 test "buildSendBody: returns null when buffer too small" {
     var buf: [10]u8 = undefined;
-    const body = buildSendBody(&buf, "user", "pass", "KWT-SMS", "96598765432", "Hello", false);
+    const body = buildSendBody(&buf, "user", "pass", "KWT-SMS", tn.placeholder, "Hello", false);
     try std.testing.expect(body == null);
 }
 

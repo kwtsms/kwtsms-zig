@@ -17,7 +17,7 @@ pub fn main() !void {
     std.debug.print("Cleaned message: {s}\n", .{cleaned});
 
     // Send with error handling
-    const resp = try client.sendOne("96598765432", "Test message", null);
+    const resp = try client.sendOne("965XXXXXXXX", "Test message", null);
     if (resp.isOk()) {
         std.debug.print("Success. msg-id: {s}\n", .{resp.msg_id.?});
     } else {

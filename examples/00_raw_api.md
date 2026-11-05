@@ -77,12 +77,12 @@ Response: {"result":"OK","coverage":["965","966","971",...]}
 
 === 4. Validate ===
 Request:  POST /API/validate/
-Numbers:  96598765432, 96512345678, invalid123
-Response: {"result":"OK","mobile":{"OK":["96598765432"],"ER":["invalid123"],"NR":[]}}
+Numbers:  965XXXXXXXX, 96512345678, invalid123
+Response: {"result":"OK","mobile":{"OK":["965XXXXXXXX"],"ER":["invalid123"],"NR":[]}}
 
 === 5. Send SMS ===
 Request:  POST /API/send/
-To:       96598765432
+To:       965XXXXXXXX
 Message:  Hello from Zig raw API example
 Test:     yes (queued, not delivered)
 Response: {"result":"OK","msg-id":"abc123...","numbers":1,"points-charged":1,"balance-after":149,"unix-timestamp":1684763355}
@@ -90,7 +90,7 @@ Saved msg-id: abc123...
 
 === 6. Send SMS (multiple numbers) ===
 Request:  POST /API/send/
-To:       96598765432, 96512345678
+To:       965XXXXXXXX, 96512345678
 Response: {"result":"OK","msg-id":"def456...","numbers":2,"points-charged":2,...}
 
 === 7. Status ===
@@ -131,7 +131,7 @@ Response: {"result":"ERROR","code":"ERR019","description":"No delivery reports f
 
 - **Always POST, never GET** — GET leaks credentials in server logs
 - **Always set `Content-Type: application/json`** — omitting it returns legacy text/html responses
-- **Phone numbers**: digits only, international format (e.g. `96598765432`), max 200 per request
+- **Phone numbers**: digits only, international format (e.g. `965XXXXXXXX`), max 200 per request
 - **Test mode** (`"test":"1"`): messages queued but not delivered, credits tentatively held (recoverable)
 - **`unix-timestamp`**: GMT+3 (Asia/Kuwait), not UTC — convert when storing
 - **`msg-id`**: save it at send time — you need it for status/DLR and cannot retrieve it later

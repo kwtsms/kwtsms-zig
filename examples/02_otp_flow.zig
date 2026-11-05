@@ -26,7 +26,7 @@ pub fn main() !void {
     var msg_buf: [256]u8 = undefined;
     const msg = std.fmt.bufPrint(&msg_buf, "Your OTP for MyApp is: {s}. Valid for 5 minutes.", .{otp_buf}) catch unreachable;
 
-    const resp = try client.sendOne("+96598765432", msg, null);
+    const resp = try client.sendOne("+965XXXXXXXX", msg, null);
     if (resp.isOk()) {
         std.debug.print("OTP sent. msg-id: {s}\n", .{resp.msg_id.?});
         // Save msg-id and OTP to your database for verification

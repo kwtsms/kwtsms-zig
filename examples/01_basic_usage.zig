@@ -17,7 +17,7 @@ pub fn main() !void {
     }
 
     // Send SMS
-    const resp = try client.sendOne("96598765432", "Hello from kwtsms-zig!", null);
+    const resp = try client.sendOne("965XXXXXXXX", "Hello from kwtsms-zig!", null);
     if (resp.isOk()) {
         std.debug.print("Sent. msg-id: {s}, balance: {d:.2}\n", .{
             resp.msg_id.?,

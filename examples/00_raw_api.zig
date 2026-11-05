@@ -109,14 +109,14 @@ pub fn main() !void {
     {
         var buf: [1024]u8 = undefined;
         const body = try std.fmt.bufPrint(&buf,
-            \\{{"username":"{s}","password":"{s}","mobile":"96598765432,96512345678,invalid123"}}
+            \\{{"username":"{s}","password":"{s}","mobile":"965XXXXXXXX,96512345678,invalid123"}}
         , .{ USERNAME, PASSWORD });
 
         const response = try apiPost(allocator, "validate", body);
         try out.print("Request:  POST /API/validate/\n", .{});
-        try out.print("Numbers:  96598765432, 96512345678, invalid123\n", .{});
+        try out.print("Numbers:  965XXXXXXXX, 96512345678, invalid123\n", .{});
         try out.print("Response: {s}\n", .{response});
-        // Expected: {"result":"OK","mobile":{"OK":["96598765432"],"ER":["invalid123"],"NR":["96512345678"]}}
+        // Expected: {"result":"OK","mobile":{"OK":["965XXXXXXXX"],"ER":["invalid123"],"NR":["96512345678"]}}
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -127,12 +127,12 @@ pub fn main() !void {
     {
         var buf: [4096]u8 = undefined;
         const body = try std.fmt.bufPrint(&buf,
-            \\{{"username":"{s}","password":"{s}","sender":"{s}","mobile":"96598765432","message":"Hello from Zig raw API example","test":"{s}"}}
+            \\{{"username":"{s}","password":"{s}","sender":"{s}","mobile":"965XXXXXXXX","message":"Hello from Zig raw API example","test":"{s}"}}
         , .{ USERNAME, PASSWORD, SENDER_ID, if (TEST_MODE) "1" else "0" });
 
         const response = try apiPost(allocator, "send", body);
         try out.print("Request:  POST /API/send/\n", .{});
-        try out.print("To:       96598765432\n", .{});
+        try out.print("To:       965XXXXXXXX\n", .{});
         try out.print("Message:  Hello from Zig raw API example\n", .{});
         try out.print("Test:     {s}\n", .{if (TEST_MODE) "yes (queued, not delivered)" else "no (LIVE)"});
         try out.print("Response: {s}\n", .{response});
@@ -152,12 +152,12 @@ pub fn main() !void {
     {
         var buf: [4096]u8 = undefined;
         const body = try std.fmt.bufPrint(&buf,
-            \\{{"username":"{s}","password":"{s}","sender":"{s}","mobile":"96598765432,96512345678","message":"Bulk hello from Zig","test":"{s}"}}
+            \\{{"username":"{s}","password":"{s}","sender":"{s}","mobile":"965XXXXXXXX,96512345678","message":"Bulk hello from Zig","test":"{s}"}}
         , .{ USERNAME, PASSWORD, SENDER_ID, if (TEST_MODE) "1" else "0" });
 
         const response = try apiPost(allocator, "send", body);
         try out.print("Request:  POST /API/send/\n", .{});
-        try out.print("To:       96598765432, 96512345678\n", .{});
+        try out.print("To:       965XXXXXXXX, 96512345678\n", .{});
         try out.print("Response: {s}\n", .{response});
         // Expected: {"result":"OK","msg-id":"...","numbers":2,"points-charged":2,...}
     }

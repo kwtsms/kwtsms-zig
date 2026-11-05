@@ -7,7 +7,7 @@ pub fn main() !void {
 
     // Send to multiple numbers
     const mobiles = [_][]const u8{
-        "96598765432",
+        "965XXXXXXXX",
         "+96512345678",
         "0096587654321",
     };

@@ -25,6 +25,9 @@ jobs:
         run: zig build
 
       - name: Run tests
+        # 2026-11-05 08:52 +03: phone tests read KWTSMS_TEST_NUMBER (skipped when unset), int-testnumber.
+        env:
+          KWTSMS_TEST_NUMBER: ${{ secrets.KWTSMS_TEST_NUMBER }}
         run: zig build test
 
       - name: Create GitHub Release

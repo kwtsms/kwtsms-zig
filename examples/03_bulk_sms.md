@@ -18,7 +18,7 @@ zig build example-03
 
 ## Notes
 
-- Numbers are normalized: `+96598765432`, `0096598765432`, and `96598765432` are the same
+- Numbers are normalized: `+965XXXXXXXX`, `00965XXXXXXXX`, and `965XXXXXXXX` are the same
 - Duplicates after normalization are removed automatically
 - Batches of >200 numbers are split with 0.5s delay between batches
 - ERR013 (queue full) is retried automatically with exponential backoff

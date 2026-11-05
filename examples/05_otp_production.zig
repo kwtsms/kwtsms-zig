@@ -151,8 +151,8 @@ fn sendOtp(
 
 /// Verify an OTP code.
 /// H1 fix: normalize the phone number before looking it up so the key matches
-/// what sendOtp stored (e.g., "+96598765432" and "96598765432" both normalize to
-/// "96598765432" and will hit the same map entry).
+/// what sendOtp stored (e.g., "+965XXXXXXXX" and "965XXXXXXXX" both normalize to
+/// "965XXXXXXXX" and will hit the same map entry).
 fn verifyOtp(
     allocator: std.mem.Allocator,
     phone: []const u8,
@@ -213,15 +213,15 @@ pub fn main() !void {
     };
 
     // Send OTP
-    const send_result = try sendOtp(allocator, &client, "+96598765432", config);
+    const send_result = try sendOtp(allocator, &client, "+965XXXXXXXX", config);
     if (send_result.ok) {
         std.debug.print("OTP sent. msg-id: {s}\n", .{send_result.msg_id.?});
     } else {
         std.debug.print("Failed to send OTP: {s}\n", .{send_result.err.?});
     }
 
-    // Verify OTP: normalize phone before lookup so "+96598765432" matches "96598765432"
-    const verify_result = try verifyOtp(allocator, "+96598765432", "123456", config);
+    // Verify OTP: normalize phone before lookup so "+965XXXXXXXX" matches "965XXXXXXXX"
+    const verify_result = try verifyOtp(allocator, "+965XXXXXXXX", "123456", config);
     if (verify_result.ok) {
         std.debug.print("OTP verified successfully\n", .{});
     } else {

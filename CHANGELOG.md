@@ -9,6 +9,11 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- ERR006 and ERR025 action text, docs and examples use the placeholder `965XXXXXXXX` instead of a sample mobile number; tests read the phone number from `KWTSMS_TEST_NUMBER` and skip the tests that need it when it is unset.
+- The two live 250-number bulk tests (generated number ranges) are removed; live tests send only to `KWTSMS_TEST_NUMBER`. The 200 + 50 batching has no offline test yet: the send path has no transport seam.
+
 ### Docs
 
 - ERR028 action text: "Sent to the same number too soon." ERR028 is opt-in per account (Duplicate SMS protection) with a per-account window (10 seconds by default), not a fixed 15 seconds.

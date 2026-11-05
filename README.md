@@ -71,7 +71,7 @@ pub fn main() !void {
     }
 
     // Send SMS
-    const resp = try client.sendOne("96598765432", "Hello from Zig!", null);
+    const resp = try client.sendOne("965XXXXXXXX", "Hello from Zig!", null);
     if (resp.isOk()) {
         std.debug.print("Sent. msg-id: {s}\n", .{resp.msg_id.?});
     }
@@ -138,14 +138,14 @@ if (result.ok) {
 
 ```zig
 // Single number
-const resp = try client.sendOne("96598765432", "Hello!", null);
+const resp = try client.sendOne("965XXXXXXXX", "Hello!", null);
 
 // Multiple numbers
-const mobiles = [_][]const u8{ "96598765432", "+96512345678", "0096587654321" };
+const mobiles = [_][]const u8{ "965XXXXXXXX", "+96512345678", "0096587654321" };
 const resp = try client.send(&mobiles, "Bulk message", null);
 
 // Custom sender ID
-const resp = try client.sendOne("96598765432", "Hello!", "MY-SENDER");
+const resp = try client.sendOne("965XXXXXXXX", "Hello!", "MY-SENDER");
 
 resp.result;        // "OK" or "ERROR"
 resp.msg_id;        // message ID (save this!)
@@ -162,7 +162,7 @@ resp.action;        // developer-friendly action message
 Use `sendBulk()` instead of `send()` when you need individual `msg_id` per batch or want to distinguish which batches succeeded or failed:
 
 ```zig
-const mobiles = [_][]const u8{ "96598765432", "+96512345678" /* ... */ };
+const mobiles = [_][]const u8{ "965XXXXXXXX", "+96512345678" /* ... */ };
 const result = try client.sendBulk(&mobiles, "Hello!", null);
 defer result.deinit(client.allocator); // always call deinit to free slices
 
@@ -195,7 +195,7 @@ const purchased = client.cachedPurchased();
 ### Validate Numbers
 
 ```zig
-const phones = [_][]const u8{ "96598765432", "invalid", "+96512345678" };
+const phones = [_][]const u8{ "965XXXXXXXX", "invalid", "+96512345678" };
 const resp = try client.validate(&phones);
 ```
 
@@ -229,9 +229,9 @@ const resp = try client.dlr("f4c841adee210f31307633ceaebff2ec");
 const kwtsms = @import("kwtsms");
 
 // Normalize phone number
-const normalized = try kwtsms.normalizePhone(allocator, "+965 9876-5432");
+const normalized = try kwtsms.normalizePhone(allocator, "+965 XXXX-XXXX");
 defer allocator.free(normalized);
-// normalized = "96598765432"
+// normalized = "965XXXXXXXX"
 
 // Validate phone input
 const result = try kwtsms.validatePhoneInput(allocator, "user@example.com");
@@ -262,7 +262,7 @@ Arabic letters and Arabic text are fully supported and never stripped.
 Every ERROR response includes an `action` field with a developer-friendly fix:
 
 ```zig
-const resp = try client.sendOne("96598765432", "Test", null);
+const resp = try client.sendOne("965XXXXXXXX", "Test", null);
 if (resp.isError()) {
     std.debug.print("[{s}] {s}\n", .{ resp.code.?, resp.description.? });
     if (resp.action) |action| {
@@ -277,7 +277,7 @@ Raw API errors should never be shown to end users. Map them:
 
 | Situation | API error | Show to user |
 |-----------|----------|--------------|
-| Invalid phone number | ERR006, ERR025 | "Please enter a valid phone number in international format (e.g., +965 9876 5432)." |
+| Invalid phone number | ERR006, ERR025 | "Please enter a valid phone number in international format (e.g., +965 XXXX XXXX)." |
 | Wrong credentials | ERR003 | "SMS service is temporarily unavailable. Please try again later." (log + alert admin) |
 | No balance | ERR010, ERR011 | "SMS service is temporarily unavailable. Please try again later." (alert admin) |
 | Country not supported | ERR026 | "SMS delivery to this country is not available." |
@@ -292,7 +292,7 @@ Raw API errors should never be shown to end users. Map them:
 |------|-------------|--------|
 | ERR001 | API disabled | Enable at kwtsms.com -> Account -> API |
 | ERR003 | Wrong credentials | Check KWTSMS_USERNAME / KWTSMS_PASSWORD |
-| ERR006 | No valid numbers | Include country code (e.g., 96598765432) |
+| ERR006 | No valid numbers | Include country code (e.g., 965XXXXXXXX) |
 | ERR008 | Sender ID banned | Use a different registered sender ID |
 | ERR009 | Empty message | Provide non-empty message text |
 | ERR010 | Zero balance | Recharge at kwtsms.com |
@@ -310,19 +310,19 @@ All formats are accepted and normalized automatically:
 
 | Input | Normalized | Valid? |
 |-------|-----------|--------|
-| `96598765432` | `96598765432` | Yes |
-| `+96598765432` | `96598765432` | Yes |
-| `0096598765432` | `96598765432` | Yes |
-| `965 9876 5432` | `96598765432` | Yes |
-| `965-9876-5432` | `96598765432` | Yes |
-| `(965) 98765432` | `96598765432` | Yes |
-| `٩٦٥٩٨٧٦٥٤٣٢` | `96598765432` | Yes |
-| `۹۶۵۹۸۷۶۵۴۳۲` | `96598765432` | Yes |
-| `+٩٦٥٩٨٧٦٥٤٣٢` | `96598765432` | Yes |
-| `٠٠٩٦٥٩٨٧٦٥٤٣٢` | `96598765432` | Yes |
-| `٩٦٥ ٩٨٧٦ ٥٤٣٢` | `96598765432` | Yes |
-| `٩٦٥-٩٨٧٦-٥٤٣٢` | `96598765432` | Yes |
-| `965٩٨٧٦٥٤٣٢` | `96598765432` | Yes |
+| `965XXXXXXXX` | `965XXXXXXXX` | Yes |
+| `+965XXXXXXXX` | `965XXXXXXXX` | Yes |
+| `00965XXXXXXXX` | `965XXXXXXXX` | Yes |
+| `965 XXXX XXXX` | `965XXXXXXXX` | Yes |
+| `965-XXXX-XXXX` | `965XXXXXXXX` | Yes |
+| `(965) XXXXXXXX` | `965XXXXXXXX` | Yes |
+| `٩٦٥XXXXXXXX` | `965XXXXXXXX` | Yes |
+| `۹۶۵XXXXXXXX` | `965XXXXXXXX` | Yes |
+| `+٩٦٥XXXXXXXX` | `965XXXXXXXX` | Yes |
+| `٠٠٩٦٥XXXXXXXX` | `965XXXXXXXX` | Yes |
+| `٩٦٥ XXXX XXXX` | `965XXXXXXXX` | Yes |
+| `٩٦٥-XXXX-XXXX` | `965XXXXXXXX` | Yes |
+| `965` + Arabic-Indic local digits | `965XXXXXXXX` | Yes |
 | `123456` (too short) | rejected | No |
 | `user@gmail.com` | rejected | No |
 
@@ -332,10 +332,10 @@ Use these for copy-paste testing of Arabic/Persian digit normalization:
 
 | Script | Digits | Example Phone |
 |--------|--------|---------------|
-| Latin | `0123456789` | `96598765432` |
-| Arabic-Indic | `٠١٢٣٤٥٦٧٨٩` | `٩٦٥٩٨٧٦٥٤٣٢` |
+| Latin | `0123456789` | `965XXXXXXXX` |
+| Arabic-Indic | `٠١٢٣٤٥٦٧٨٩` | `٩٦٥XXXXXXXX` |
 | Extended Arabic-Indic (Persian/Urdu) | `۰۱۲۳۴۵۶۷۸۹` | `۹۶۵۱۲۳۴۵۶۷۸` |
-| Mixed (Arabic-Indic + Latin) | | `٩٦٥98765٤٣٢` |
+| Mixed (Arabic-Indic + Latin) | | `٩٦٥` + Latin local digits |
 
 All variants normalize to Latin digits before sending.
 

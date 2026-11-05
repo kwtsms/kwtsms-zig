@@ -346,53 +346,65 @@ pub fn validatePhoneInput(allocator: std.mem.Allocator, phone: []const u8) !Phon
 
 // -- Tests --
 
+// 2026-11-05 08:52 +03: phone tests take the number from KWTSMS_TEST_NUMBER via
+// test_number.zig (skipped when unset) instead of a hardcoded sample, int-testnumber.
+const tn = @import("test_number");
+
+/// normalizePhone(input) must equal n; compared with mem.eql so a failure never prints the number.
+fn expectNormalizesTo(allocator: std.mem.Allocator, input: []const u8, n: []const u8) !void {
+    defer allocator.free(input);
+    const result = try normalizePhone(allocator, input);
+    defer allocator.free(result);
+    try std.testing.expect(std.mem.eql(u8, n, result));
+}
+
 test "normalizePhone: strips + prefix" {
     const allocator = std.testing.allocator;
-    const result = try normalizePhone(allocator, "+96598765432");
-    defer allocator.free(result);
-    try std.testing.expectEqualStrings("96598765432", result);
+    const n = try tn.get(allocator);
+    defer allocator.free(n);
+    try expectNormalizesTo(allocator, try tn.withPrefix(allocator, "+", n), n);
 }
 
 test "normalizePhone: strips 00 prefix" {
     const allocator = std.testing.allocator;
-    const result = try normalizePhone(allocator, "0096598765432");
-    defer allocator.free(result);
-    try std.testing.expectEqualStrings("96598765432", result);
+    const n = try tn.get(allocator);
+    defer allocator.free(n);
+    try expectNormalizesTo(allocator, try tn.withPrefix(allocator, "00", n), n);
 }
 
 test "normalizePhone: strips spaces" {
     const allocator = std.testing.allocator;
-    const result = try normalizePhone(allocator, "965 9876 5432");
-    defer allocator.free(result);
-    try std.testing.expectEqualStrings("96598765432", result);
+    const n = try tn.get(allocator);
+    defer allocator.free(n);
+    try expectNormalizesTo(allocator, try tn.split(allocator, n, " "), n);
 }
 
 test "normalizePhone: strips dashes" {
     const allocator = std.testing.allocator;
-    const result = try normalizePhone(allocator, "965-9876-5432");
-    defer allocator.free(result);
-    try std.testing.expectEqualStrings("96598765432", result);
+    const n = try tn.get(allocator);
+    defer allocator.free(n);
+    try expectNormalizesTo(allocator, try tn.split(allocator, n, "-"), n);
 }
 
 test "normalizePhone: strips dots" {
     const allocator = std.testing.allocator;
-    const result = try normalizePhone(allocator, "965.9876.5432");
-    defer allocator.free(result);
-    try std.testing.expectEqualStrings("96598765432", result);
+    const n = try tn.get(allocator);
+    defer allocator.free(n);
+    try expectNormalizesTo(allocator, try tn.split(allocator, n, "."), n);
 }
 
 test "normalizePhone: strips parens" {
     const allocator = std.testing.allocator;
-    const result = try normalizePhone(allocator, "(965) 98765432");
-    defer allocator.free(result);
-    try std.testing.expectEqualStrings("96598765432", result);
+    const n = try tn.get(allocator);
+    defer allocator.free(n);
+    try expectNormalizesTo(allocator, try std.fmt.allocPrint(allocator, "({s}) {s}", .{ n[0..3], n[3..] }), n);
 }
 
 test "normalizePhone: converts Arabic-Indic digits" {
     const allocator = std.testing.allocator;
-    const result = try normalizePhone(allocator, "\xD9\xA9\xD9\xA6\xD9\xA5\xD9\xA9\xD9\xA8\xD9\xA7\xD9\xA6\xD9\xA5\xD9\xA4\xD9\xA3\xD9\xA2");
-    defer allocator.free(result);
-    try std.testing.expectEqualStrings("96598765432", result);
+    const n = try tn.get(allocator);
+    defer allocator.free(n);
+    try expectNormalizesTo(allocator, try tn.toArabicIndic(allocator, n), n);
 }
 
 test "normalizePhone: converts Extended Arabic-Indic / Persian digits" {
@@ -440,9 +452,9 @@ test "normalizePhone: Egypt trunk prefix stripped (20010... -> 2010...)" {
 
 test "normalizePhone: Kuwait no trunk prefix (correct number unchanged)" {
     const allocator = std.testing.allocator;
-    const result = try normalizePhone(allocator, "96598765432");
-    defer allocator.free(result);
-    try std.testing.expectEqualStrings("96598765432", result);
+    const n = try tn.get(allocator);
+    defer allocator.free(n);
+    try expectNormalizesTo(allocator, try allocator.dupe(u8, n), n);
 }
 
 test "validatePhoneInput: empty string" {
@@ -509,24 +521,35 @@ test "validatePhoneInput: valid maximum (15 digits, unknown country)" {
 
 test "validatePhoneInput: valid with + prefix" {
     const allocator = std.testing.allocator;
-    const result = try validatePhoneInput(allocator, "+96598765432");
+    const n = try tn.get(allocator);
+    defer allocator.free(n);
+    const input = try tn.withPrefix(allocator, "+", n);
+    defer allocator.free(input);
+    const result = try validatePhoneInput(allocator, input);
     defer if (result.normalized.len > 0) allocator.free(@constCast(result.normalized));
     try std.testing.expect(result.valid);
-    try std.testing.expectEqualStrings("96598765432", result.normalized);
+    try std.testing.expect(std.mem.eql(u8, n, result.normalized));
 }
 
 test "validatePhoneInput: valid with Arabic digits" {
     const allocator = std.testing.allocator;
-    // ٩٦٥٩٨٧٦٥٤٣٢ = 96598765432
-    const result = try validatePhoneInput(allocator, "\xD9\xA9\xD9\xA6\xD9\xA5\xD9\xA9\xD9\xA8\xD9\xA7\xD9\xA6\xD9\xA5\xD9\xA4\xD9\xA3\xD9\xA2");
+    const n = try tn.get(allocator);
+    defer allocator.free(n);
+    const input = try tn.toArabicIndic(allocator, n);
+    defer allocator.free(input);
+    const result = try validatePhoneInput(allocator, input);
     defer if (result.normalized.len > 0) allocator.free(@constCast(result.normalized));
     try std.testing.expect(result.valid);
-    try std.testing.expectEqualStrings("96598765432", result.normalized);
+    try std.testing.expect(std.mem.eql(u8, n, result.normalized));
 }
 
 test "validatePhoneInput: Kuwait valid mobile" {
     const allocator = std.testing.allocator;
-    const result = try validatePhoneInput(allocator, "96598765432");
+    const n = try tn.get(allocator);
+    defer allocator.free(n);
+    const input = try allocator.dupe(u8, n);
+    defer allocator.free(input);
+    const result = try validatePhoneInput(allocator, input);
     defer if (result.normalized.len > 0) allocator.free(@constCast(result.normalized));
     try std.testing.expect(result.valid);
 }
@@ -557,7 +580,7 @@ test "validatePhoneInput: Saudi trunk 0 normalized and valid" {
 }
 
 test "findCountryCode: Kuwait" {
-    const cc = findCountryCode("96598765432");
+    const cc = findCountryCode(tn.placeholder);
     try std.testing.expect(cc != null);
     try std.testing.expectEqualStrings("965", cc.?);
 }

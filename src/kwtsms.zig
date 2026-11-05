@@ -570,6 +570,9 @@ pub const KwtSMS = struct {
     }
 };
 
+// 2026-11-05 08:52 +03: test-only helper for the KWTSMS_TEST_NUMBER phone number, int-testnumber.
+const test_number = @import("test_number");
+
 // Pull in all module tests
 comptime {
     _ = phone;
@@ -624,9 +627,15 @@ test "cleanMessage integration: emoji-only returns empty" {
 
 test "normalizePhone integration: strips and converts" {
     const allocator = std.testing.allocator;
-    const result = try normalizePhone(allocator, "+965 9876-5432");
+    // 2026-11-05 08:52 +03: number from KWTSMS_TEST_NUMBER (skipped when unset), variant built
+    // at runtime, compared with mem.eql so failures never print it, int-testnumber.
+    const n = try test_number.get(allocator);
+    defer allocator.free(n);
+    const input = try std.fmt.allocPrint(allocator, "+{s} {s}-{s}", .{ n[0..3], n[3..7], n[7..] });
+    defer allocator.free(input);
+    const result = try normalizePhone(allocator, input);
     defer allocator.free(result);
-    try std.testing.expectEqualStrings("96598765432", result);
+    try std.testing.expect(std.mem.eql(u8, n, result));
 }
 
 test "KwtSMS.fromEnv: strings from .env file are valid after return (C1 fix)" {
@@ -703,10 +712,15 @@ test "ValidateResult: all-invalid input returns rejected entries" {
 test "ValidateResult: mixed input returns rejected slice for bad numbers" {
     // page_allocator: apiRequest allocates raw_body which is intentionally never freed (by design).
     const allocator = std.heap.page_allocator;
-    var client = KwtSMS.init(allocator, "user", "pass", null, false, null);
+    // 2026-11-05 08:52 +03: log_file "" disables logging, so the test number is never written to
+    // kwtsms.log by this test (it calls the validate endpoint), int-testnumber.
+    var client = KwtSMS.init(allocator, "user", "pass", null, false, "");
 
     // One valid (Kuwait number), one garbage
-    const phones = [_][]const u8{ "96598765432", "notaphone" };
+    // 2026-11-05 08:52 +03: valid number from KWTSMS_TEST_NUMBER (skipped when unset), int-testnumber.
+    const n = try test_number.get(allocator);
+    defer allocator.free(n);
+    const phones = [_][]const u8{ n, "notaphone" };
     var result = try client.validate(&phones);
     defer result.deinit(allocator);
 

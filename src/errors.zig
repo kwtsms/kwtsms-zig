@@ -13,7 +13,8 @@ pub const api_errors = [_]ApiErrorEntry{
     .{ .code = "ERR003", .action = "Wrong API username or password. Check KWTSMS_USERNAME and KWTSMS_PASSWORD. These are your API credentials, not your account mobile number." },
     .{ .code = "ERR004", .action = "This account does not have API access. Contact kwtSMS support to enable it." },
     .{ .code = "ERR005", .action = "This account is blocked. Contact kwtSMS support." },
-    .{ .code = "ERR006", .action = "No valid phone numbers. Make sure each number includes the country code (e.g., 96598765432 for Kuwait, not 98765432)." },
+    // 2026-11-05 08:52 +03: ERR006 and ERR025 examples use the 965XXXXXXXX placeholder, the old sample belongs to a real person, int-testnumber.
+    .{ .code = "ERR006", .action = "No valid phone numbers. Make sure each number includes the country code (e.g., 965XXXXXXXX for Kuwait, not XXXXXXXX)." },
     .{ .code = "ERR007", .action = "Too many numbers in a single request (maximum 200). Split into smaller batches." },
     .{ .code = "ERR008", .action = "This sender ID is banned. Use a different sender ID registered on your kwtSMS account." },
     .{ .code = "ERR009", .action = "Message is empty. Provide a non-empty message text." },
@@ -27,7 +28,7 @@ pub const api_errors = [_]ApiErrorEntry{
     .{ .code = "ERR022", .action = "Delivery reports are not ready yet. Try again after 24 hours." },
     .{ .code = "ERR023", .action = "Unknown delivery report error. Contact kwtSMS support." },
     .{ .code = "ERR024", .action = "Your IP address is not in the API whitelist. Add it at kwtsms.com -> Account -> API -> IP Lockdown, or disable IP lockdown." },
-    .{ .code = "ERR025", .action = "Invalid phone number. Make sure the number includes the country code (e.g., 96598765432 for Kuwait, not 98765432)." },
+    .{ .code = "ERR025", .action = "Invalid phone number. Make sure the number includes the country code (e.g., 965XXXXXXXX for Kuwait, not XXXXXXXX)." },
     .{ .code = "ERR026", .action = "This country is not activated on your account. Contact kwtSMS support to enable the destination country." },
     .{ .code = "ERR027", .action = "HTML tags are not allowed in the message. Remove any HTML content and try again." },
     // 2026-10-22 15:36 +03: ERR028 is opt-in per account with a per-account window, not a fixed 15 s.
