@@ -257,6 +257,17 @@ defer allocator.free(cleaned);
 
 Arabic letters and Arabic text are fully supported and never stripped.
 
+## User-Agent
+
+Every API request carries the User-Agent `kwtsms-zig/<version>`: the library name and version only, no
+personal or customer data. Call `setAppName()` to put your own product token in front:
+
+```zig
+var client = kwtsms.KwtSMS.init(allocator, "zig_username", "zig_password", "MY-SENDER", false, null);
+client.setAppName("my-shop/2.1.0");
+// User-Agent: my-shop/2.1.0 kwtsms-zig/0.4.0
+```
+
 ## Error Handling
 
 Every ERROR response includes an `action` field with a developer-friendly fix:

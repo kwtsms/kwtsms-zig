@@ -16,6 +16,9 @@ pub const ApiResponse = errors.ApiResponse;
 pub const enrichError = errors.enrichError;
 pub const makeError = errors.makeError;
 pub const api_errors = errors.api_errors;
+// 2026-11-05 14:24 +03: User-Agent version and builder (#939).
+pub const version = request.version;
+pub const buildUserAgent = request.buildUserAgent;
 
 /// InvalidEntry represents a phone number that failed local pre-validation.
 pub const InvalidEntry = struct {
@@ -81,6 +84,23 @@ pub const KwtSMS = struct {
     cached_balance: ?f64,
     cached_purchased: ?f64,
     mutex: std.Thread.Mutex,
+    // 2026-11-05 14:24 +03: User-Agent "[app token ]kwtsms-zig/<version>"; empty (len 0) = library token only (#939).
+    _ua_buf: [request.user_agent_max]u8 = undefined,
+    _ua_len: usize = 0,
+
+    /// Put the calling app's product token (e.g. "kwtsms-wordpress/3.5.2") in front of the library
+    /// token in the User-Agent. The token is sanitized and copied, so app_name may be freed after.
+    /// 2026-11-05 14:24 +03: added for per-integration counts (#939).
+    pub fn setAppName(self: *KwtSMS, app_name: []const u8) void {
+        self._ua_len = request.buildUserAgent(&self._ua_buf, app_name).len;
+    }
+
+    /// The User-Agent this client sends. Points into the client: valid while it lives.
+    /// 2026-11-05 14:24 +03: added for per-integration counts (#939).
+    pub fn userAgent(self: *const KwtSMS) []const u8 {
+        if (self._ua_len == 0) return request.library_token;
+        return self._ua_buf[0..self._ua_len];
+    }
 
     /// Free resources when the client was created via fromEnv().
     /// Not needed when using init() with string literals.
@@ -139,7 +159,7 @@ pub const KwtSMS = struct {
             return .{ .ok = false, .balance = null, .err = "Failed to build request" };
         };
 
-        const resp = try request.apiRequest(self.allocator, "balance", body, self.log_file);
+        const resp = try request.apiRequestWithUserAgent(self.allocator, "balance", body, self.log_file, self.userAgent());
 
         if (resp.isOk()) {
             self.mutex.lock();
@@ -193,7 +213,7 @@ pub const KwtSMS = struct {
             return errors.networkError("Request body too large");
         };
 
-        const resp = try request.apiRequest(self.allocator, "send", body, self.log_file);
+        const resp = try request.apiRequestWithUserAgent(self.allocator, "send", body, self.log_file, self.userAgent());
 
         // Cache balance from response
         if (resp.balance_after) |bal| {
@@ -526,7 +546,7 @@ pub const KwtSMS = struct {
             return error.OutOfMemory;
         };
 
-        const resp = try request.apiRequest(self.allocator, "validate", body, self.log_file);
+        const resp = try request.apiRequestWithUserAgent(self.allocator, "validate", body, self.log_file, self.userAgent());
         return ValidateResult{ .response = resp, .rejected = rejected_slice };
     }
 
@@ -536,7 +556,7 @@ pub const KwtSMS = struct {
         const body = request.buildAuthBody(&buf, self.username, self.password) orelse {
             return errors.networkError("Failed to build request");
         };
-        return try request.apiRequest(self.allocator, "senderid", body, self.log_file);
+        return try request.apiRequestWithUserAgent(self.allocator, "senderid", body, self.log_file, self.userAgent());
     }
 
     /// List active country prefixes for coverage.
@@ -545,7 +565,7 @@ pub const KwtSMS = struct {
         const body = request.buildAuthBody(&buf, self.username, self.password) orelse {
             return errors.networkError("Failed to build request");
         };
-        return try request.apiRequest(self.allocator, "coverage", body, self.log_file);
+        return try request.apiRequestWithUserAgent(self.allocator, "coverage", body, self.log_file, self.userAgent());
     }
 
     /// Check message status.
@@ -556,7 +576,7 @@ pub const KwtSMS = struct {
         const body = request.buildMsgIdBody(&buf, self.username, self.password, msg_id) orelse {
             return errors.networkError("Failed to build request");
         };
-        return try request.apiRequest(self.allocator, "status", body, self.log_file);
+        return try request.apiRequestWithUserAgent(self.allocator, "status", body, self.log_file, self.userAgent());
     }
 
     /// Get delivery report (international numbers only).
@@ -566,7 +586,7 @@ pub const KwtSMS = struct {
         const body = request.buildMsgIdBody(&buf, self.username, self.password, msg_id) orelse {
             return errors.networkError("Failed to build request");
         };
-        return try request.apiRequest(self.allocator, "dlr", body, self.log_file);
+        return try request.apiRequestWithUserAgent(self.allocator, "dlr", body, self.log_file, self.userAgent());
     }
 };
 
@@ -728,4 +748,41 @@ test "ValidateResult: mixed input returns rejected slice for bad numbers" {
     try std.testing.expect(result.rejected.len == 1);
     try std.testing.expectEqualStrings("notaphone", result.rejected[0].input);
     try std.testing.expect(result.rejected[0].err.len > 0);
+}
+
+// 2026-11-05 14:24 +03: User-Agent identifies the library and the calling app (#939).
+fn isLibToken(s: []const u8) bool {
+    const prefix = "kwtsms-zig/";
+    if (!std.mem.startsWith(u8, s, prefix) or s.len == prefix.len) return false;
+    const v = s[prefix.len..];
+    if (!std.ascii.isDigit(v[0])) return false;
+    for (v) |c| {
+        if (!(std.ascii.isAlphanumeric(c) or c == '.' or c == '+' or c == '-')) return false;
+    }
+    return true;
+}
+
+test "userAgent: default is the library token" {
+    const client = KwtSMS.init(std.testing.allocator, "zig_username", "zig_password", null, true, "");
+    try std.testing.expectEqualStrings("kwtsms-zig/" ++ version, client.userAgent());
+    try std.testing.expect(isLibToken(client.userAgent()));
+}
+
+test "userAgent: app token prepended" {
+    var client = KwtSMS.init(std.testing.allocator, "zig_username", "zig_password", null, true, "");
+    client.setAppName("kwtsms-wordpress/3.5.2");
+    try std.testing.expectEqualStrings("kwtsms-wordpress/3.5.2 kwtsms-zig/" ++ version, client.userAgent());
+}
+
+test "buildUserAgent: removes CR/LF and non-ASCII, limits length" {
+    var buf: [request.user_agent_max]u8 = undefined;
+    const ua = buildUserAgent(&buf, "my app\r\nX-Injected: 1");
+    try std.testing.expect(std.mem.indexOfAny(u8, ua, "\r\n") == null);
+    try std.testing.expect(std.mem.indexOf(u8, ua, " X-Injected") == null);
+    try std.testing.expectEqualStrings("my-appX-Injected:-1 kwtsms-zig/" ++ version, ua);
+    const long = buildUserAgent(&buf, "a" ** 200);
+    try std.testing.expectEqual(@as(usize, 64), std.mem.indexOfScalar(u8, long, ' ').?);
+    try std.testing.expectEqualStrings("kwtsms-zig/" ++ version, buildUserAgent(&buf, " \r\n "));
+    try std.testing.expectEqualStrings("shop/1.0 kwtsms-zig/" ++ version, buildUserAgent(&buf, "\u{0643}\u{0648}shop/1.0"));
+    try std.testing.expectEqualStrings("a-b kwtsms-zig/" ++ version, buildUserAgent(&buf, "-- a   b --"));
 }

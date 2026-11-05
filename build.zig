@@ -11,6 +11,12 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/test_number.zig"),
     });
 
+    // 2026-11-05 14:24 +03: the library version for the User-Agent comes from build.zig.zon, read here at
+    // build time (Zig 0.13 cannot @import a .zon file), so it is never a hand-typed constant (#939).
+    const build_options = b.addOptions();
+    build_options.addOption([]const u8, "version", readZonVersion(b));
+    const build_options_mod = build_options.createModule();
+
     // Library module (for consumers via build.zig.zon)
     const kwtsms_mod = b.addModule("kwtsms", .{
         .root_source_file = b.path("src/kwtsms.zig"),
@@ -18,6 +24,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     kwtsms_mod.addImport("test_number", test_number_mod);
+    kwtsms_mod.addImport("build_options", build_options_mod);
 
     // Static library
     const lib = b.addStaticLibrary(.{
@@ -27,6 +34,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     lib.root_module.addImport("test_number", test_number_mod);
+    lib.root_module.addImport("build_options", build_options_mod);
     b.installArtifact(lib);
 
     // Unit tests (library)
@@ -36,6 +44,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     lib_unit_tests.root_module.addImport("test_number", test_number_mod);
+    lib_unit_tests.root_module.addImport("build_options", build_options_mod);
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
 
     const test_step = b.step("test", "Run unit tests");
@@ -74,4 +83,15 @@ pub fn build(b: *std.Build) void {
         example.root_module.addImport("kwtsms", kwtsms_mod);
         b.installArtifact(example);
     }
+}
+
+/// Read `.version = "x.y.z"` from build.zig.zon in this package's root.
+/// 2026-11-05 14:24 +03: added for the User-Agent version (#939).
+fn readZonVersion(b: *std.Build) []const u8 {
+    const zon = b.build_root.handle.readFileAlloc(b.allocator, "build.zig.zon", 64 * 1024) catch
+        @panic("cannot read build.zig.zon");
+    const key = ".version = \"";
+    const start = (std.mem.indexOf(u8, zon, key) orelse @panic("no .version in build.zig.zon")) + key.len;
+    const end = std.mem.indexOfScalarPos(u8, zon, start, '"') orelse @panic("bad .version in build.zig.zon");
+    return zon[start..end];
 }

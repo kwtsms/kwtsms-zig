@@ -9,6 +9,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- The client sends a User-Agent `kwtsms-zig/<version>` (name and version only, no personal data) so kwtSMS can see which integrations are in use. `client.setAppName()` puts your app's token in front, e.g. `my-shop/2.1.0 kwtsms-zig/0.4.0`. New `kwtsms.version` (from build.zig.zon), `client.userAgent()`, `kwtsms.buildUserAgent()` and `request.apiRequestWithUserAgent()`.
+
 ### Changed
 
 - ERR006 and ERR025 action text, docs and examples use the placeholder `965XXXXXXXX` instead of a sample mobile number; tests read the phone number from `KWTSMS_TEST_NUMBER` and skip the tests that need it when it is unset.

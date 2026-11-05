@@ -2,15 +2,74 @@ const std = @import("std");
 const errors = @import("errors.zig");
 const logger = @import("logger.zig");
 
+const build_options = @import("build_options");
+
 const BASE_URL = "https://www.kwtsms.com/API/";
 
-/// Make a POST request to the kwtSMS API.
+/// Library version, from build.zig.zon (read by build.zig at build time).
+/// 2026-11-05 14:24 +03: added so kwtSMS can count accounts per integration (#939).
+pub const version: []const u8 = build_options.version;
+/// The library token sent in every User-Agent.
+pub const library_token = "kwtsms-zig/" ++ build_options.version;
+/// Longest app token kept, in bytes.
+pub const app_token_max = 64;
+/// Buffer size that holds any User-Agent built by buildUserAgent.
+pub const user_agent_max = app_token_max + 1 + library_token.len;
+
+/// Build the User-Agent "[app token ]kwtsms-zig/<version>" into buf and return it.
+/// The token is caller input, so control characters (CR/LF would split the header) and
+/// non-ASCII bytes are removed, space runs become '-', leading and trailing '-' are trimmed,
+/// and it is cut to 64 bytes. Empty gives the library token only.
+/// 2026-11-05 14:24 +03: added for per-integration counts (#939).
+pub fn buildUserAgent(buf: *[user_agent_max]u8, app_name: []const u8) []const u8 {
+    var n: usize = 0;
+    var pending_dash = false;
+    for (app_name) |c| {
+        if (c == ' ') {
+            pending_dash = true;
+            continue;
+        }
+        if (c < 0x20 or c >= 0x7f) continue;
+        if (n == 0 and c == '-') continue;
+        if (pending_dash and n > 0) {
+            if (n == app_token_max) break;
+            buf[n] = '-';
+            n += 1;
+        }
+        pending_dash = false;
+        if (n == app_token_max) break;
+        buf[n] = c;
+        n += 1;
+    }
+    while (n > 0 and buf[n - 1] == '-') n -= 1;
+    if (n > 0) {
+        buf[n] = ' ';
+        n += 1;
+    }
+    @memcpy(buf[n .. n + library_token.len], library_token);
+    return buf[0 .. n + library_token.len];
+}
+
+/// Make a POST request to the kwtSMS API with the library User-Agent.
 /// Returns the parsed ApiResponse. Never panics.
 pub fn apiRequest(
     allocator: std.mem.Allocator,
     endpoint: []const u8,
     json_body: []const u8,
     log_file: ?[]const u8,
+) !errors.ApiResponse {
+    return apiRequestWithUserAgent(allocator, endpoint, json_body, log_file, library_token);
+}
+
+/// Make a POST request to the kwtSMS API, sending user_agent as the User-Agent.
+/// Returns the parsed ApiResponse. Never panics.
+/// 2026-11-05 14:24 +03: split from apiRequest (its signature is unchanged) to carry the User-Agent (#939).
+pub fn apiRequestWithUserAgent(
+    allocator: std.mem.Allocator,
+    endpoint: []const u8,
+    json_body: []const u8,
+    log_file: ?[]const u8,
+    user_agent: []const u8,
 ) !errors.ApiResponse {
     // Build full URL
     var url_buf: [256]u8 = undefined;
@@ -31,6 +90,8 @@ pub fn apiRequest(
     var header_buf: [4096]u8 = undefined;
     var req = client.open(.POST, uri, .{
         .server_header_buffer = &header_buf,
+        // 2026-11-05 14:24 +03: "kwtsms-zig/<version>", prefixed by the app token when given (#939).
+        .headers = .{ .user_agent = .{ .override = user_agent } },
         .extra_headers = &.{
             .{ .name = "Content-Type", .value = "application/json" },
             .{ .name = "Accept", .value = "application/json" },
