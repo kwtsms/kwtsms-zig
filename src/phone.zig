@@ -501,7 +501,7 @@ test "validatePhoneInput: too long" {
 }
 
 test "validatePhoneInput: valid minimum (7 digits, unknown country)" {
-    // 2991234 starts with 299 (Greenland) which is not in our rules — passes through as unknown.
+    // 2991234 starts with 299 (Greenland) which is not in our rules - passes through as unknown.
     const allocator = std.testing.allocator;
     const result = try validatePhoneInput(allocator, "2991234");
     defer if (result.normalized.len > 0) allocator.free(@constCast(result.normalized));
@@ -511,7 +511,7 @@ test "validatePhoneInput: valid minimum (7 digits, unknown country)" {
 }
 
 test "validatePhoneInput: valid maximum (15 digits, unknown country)" {
-    // 299123456789012 starts with 299 (Greenland) which is not in our rules — passes through as unknown.
+    // 299123456789012 starts with 299 (Greenland) which is not in our rules - passes through as unknown.
     const allocator = std.testing.allocator;
     const result = try validatePhoneInput(allocator, "299123456789012");
     defer if (result.normalized.len > 0) allocator.free(@constCast(result.normalized));

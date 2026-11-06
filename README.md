@@ -59,7 +59,7 @@ pub fn main() !void {
     const allocator = std.heap.page_allocator;
 
     // Load credentials from environment variables / .env file.
-    // Call client.deinit() when done if you use fromEnv() — it frees heap-owned strings.
+    // Call client.deinit() when done if you use fromEnv() - it frees heap-owned strings.
     // When using KwtSMS.init() with string literals, deinit() is not needed.
     var client = try kwtsms.KwtSMS.fromEnv(allocator, null);
     defer client.deinit();

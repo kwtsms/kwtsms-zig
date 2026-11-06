@@ -15,7 +15,7 @@ pub fn main() !void {
     );
 
     // Generate OTP using the OS CSPRNG directly.
-    // L1 fix: do not use a PRNG seeded from a timestamp — predictable within same second.
+    // L1 fix: do not use a PRNG seeded from a timestamp - predictable within same second.
     // std.crypto.random draws from the OS entropy source on every call.
     var otp_buf: [6]u8 = undefined;
     for (&otp_buf) |*c| {

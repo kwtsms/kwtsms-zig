@@ -1,4 +1,4 @@
-// 00_raw_api.zig — Raw kwtSMS API calls without the client library.
+// 00_raw_api.zig - Raw kwtSMS API calls without the client library.
 //
 // Demonstrates every kwtSMS endpoint using only std.http.Client.
 // Copy-paste any section into your own project.
@@ -55,7 +55,7 @@ pub fn main() !void {
     const out = std.io.getStdOut().writer();
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 1. BALANCE — Check account balance
+    // 1. BALANCE - Check account balance
     // ═══════════════════════════════════════════════════════════════════════
     try out.print("\n=== 1. Balance ===\n", .{});
     {
@@ -71,7 +71,7 @@ pub fn main() !void {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 2. SENDER ID — List registered sender IDs
+    // 2. SENDER ID - List registered sender IDs
     // ═══════════════════════════════════════════════════════════════════════
     try out.print("\n=== 2. Sender IDs ===\n", .{});
     {
@@ -87,7 +87,7 @@ pub fn main() !void {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 3. COVERAGE — List active country prefixes
+    // 3. COVERAGE - List active country prefixes
     // ═══════════════════════════════════════════════════════════════════════
     try out.print("\n=== 3. Coverage ===\n", .{});
     {
@@ -103,7 +103,7 @@ pub fn main() !void {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 4. VALIDATE — Validate phone numbers before sending
+    // 4. VALIDATE - Validate phone numbers before sending
     // ═══════════════════════════════════════════════════════════════════════
     try out.print("\n=== 4. Validate ===\n", .{});
     {
@@ -120,7 +120,7 @@ pub fn main() !void {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 5. SEND — Send an SMS (test mode)
+    // 5. SEND - Send an SMS (test mode)
     // ═══════════════════════════════════════════════════════════════════════
     try out.print("\n=== 5. Send SMS ===\n", .{});
     var saved_msg_id: ?[]const u8 = null;
@@ -146,7 +146,7 @@ pub fn main() !void {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 6. SEND (multiple numbers) — Comma-separated, max 200 per request
+    // 6. SEND (multiple numbers) - Comma-separated, max 200 per request
     // ═══════════════════════════════════════════════════════════════════════
     try out.print("\n=== 6. Send SMS (multiple numbers) ===\n", .{});
     {
@@ -163,7 +163,7 @@ pub fn main() !void {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 7. STATUS — Check message queue status (requires msg-id from send)
+    // 7. STATUS - Check message queue status (requires msg-id from send)
     // ═══════════════════════════════════════════════════════════════════════
     try out.print("\n=== 7. Status ===\n", .{});
     if (saved_msg_id) |msg_id| {
@@ -183,7 +183,7 @@ pub fn main() !void {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 8. DLR — Delivery report (international numbers only, not Kuwait)
+    // 8. DLR - Delivery report (international numbers only, not Kuwait)
     // ═══════════════════════════════════════════════════════════════════════
     try out.print("\n=== 8. Delivery Report (DLR) ===\n", .{});
     if (saved_msg_id) |msg_id| {

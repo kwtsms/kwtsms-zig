@@ -44,7 +44,7 @@ Every request follows the same pattern:
 2. **POST** to `https://www.kwtsms.com/API/<endpoint>/` with `Content-Type: application/json`
 3. **Read the JSON response** and print it
 
-The example uses one small helper function (`apiPost`) for the HTTP call. Everything else is inline — you can see exactly what JSON goes in and what comes back.
+The example uses one small helper function (`apiPost`) for the HTTP call. Everything else is inline - you can see exactly what JSON goes in and what comes back.
 
 ## API request format
 
@@ -129,15 +129,15 @@ Response: {"result":"ERROR","code":"ERR019","description":"No delivery reports f
 
 ## Key rules
 
-- **Always POST, never GET** — GET leaks credentials in server logs
-- **Always set `Content-Type: application/json`** — omitting it returns legacy text/html responses
+- **Always POST, never GET** - GET leaks credentials in server logs
+- **Always set `Content-Type: application/json`** - omitting it returns legacy text/html responses
 - **Phone numbers**: digits only, international format (e.g. `965XXXXXXXX`), max 200 per request
 - **Test mode** (`"test":"1"`): messages queued but not delivered, credits tentatively held (recoverable)
-- **`unix-timestamp`**: GMT+3 (Asia/Kuwait), not UTC — convert when storing
-- **`msg-id`**: save it at send time — you need it for status/DLR and cannot retrieve it later
+- **`unix-timestamp`**: GMT+3 (Asia/Kuwait), not UTC - convert when storing
+- **`msg-id`**: save it at send time - you need it for status/DLR and cannot retrieve it later
 
 ## Notes
 
 - This example does NOT use the kwtsms client library. It is pure `std.http.Client`.
-- For production code, use the client library instead — it handles phone normalization, message cleaning, batching, error enrichment, and logging automatically.
+- For production code, use the client library instead - it handles phone normalization, message cleaning, batching, error enrichment, and logging automatically.
 - `KWT-SMS` is a shared test sender ID. Register a private sender ID before going live.
