@@ -28,14 +28,10 @@ test "integration: verify with valid credentials" {
     try std.testing.expect(result.balance.? >= 0);
 }
 
-test "integration: verify with wrong credentials" {
-    _ = getTestCredentials() orelse return; // skip if no creds at all
-    const allocator = std.heap.page_allocator;
-    var client = kwtsms.KwtSMS.init(allocator, "zig_wrong_user", "zig_wrong_pass", null, true, "");
-    const result = try client.verify();
-    try std.testing.expect(!result.ok);
-    try std.testing.expect(result.err != null);
-}
+// 2026-11-07 00:03 +03: wrong-credential test mocked; live failed logins trip the security log (task neg-auth-tests).
+// "integration: verify with wrong credentials" removed: ERR003 handling is covered offline by
+// "parseResponse: parses ERROR response with enrichment" (src/request.zig) and "getAction returns
+// action for known codes" (src/errors.zig).
 
 test "integration: balance returns a number" {
     const creds = getTestCredentials() orelse return;
