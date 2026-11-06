@@ -9,9 +9,11 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-06
+
 ### Added
 
-- The client sends a User-Agent `kwtsms-zig/<version>` (name and version only, no personal data) so kwtSMS can see which integrations are in use. `client.setAppName()` puts your app's token in front, e.g. `my-shop/2.1.0 kwtsms-zig/0.4.0`. New `kwtsms.version` (from build.zig.zon), `client.userAgent()`, `kwtsms.buildUserAgent()` and `request.apiRequestWithUserAgent()`.
+- The client sends a User-Agent `kwtsms-zig/<version>` (name and version only, no personal data) so kwtSMS can see which integrations are in use. `client.setAppName()` puts your app's token in front, e.g. `my-shop/2.1.0 kwtsms-zig/0.5.0`. New `kwtsms.version` (from build.zig.zon), `client.userAgent()`, `kwtsms.buildUserAgent()` and `request.apiRequestWithUserAgent()`.
 
 ### Changed
 
