@@ -44,18 +44,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - `EnvConfig.deinit(allocator)`: frees owned `.env` string copies via `_owned_*` flags.
 
 ### Security
-- **H1** Phone validation lookup now uses the normalized (country-code-prefixed) number, preventing silent OTP misdelivery.
-- **H2** Logger password-masking buffer widened from 4096 to 8192 bytes; large bodies are now masked instead of passed through in plaintext.
-- **H3** JSONL error field is now properly JSON-quoted; bare text broke downstream parsers.
-- **H4** `parsed.deinit()` called after JSON response parsing; `_ = parsed` leaked parse tree memory.
-- **M1** All four request body builders rewritten to use `FixedBufferStream` + `writeJsonEscaped`, eliminating JSON injection via username/password/message.
-- **M2** OOM window in `prepareNumbers` resolved: `valid_numbers.append` now precedes `seen.put`; failure rolls back and frees the allocation.
-- **M3** `status()` and `dlr()` request buffers widened from 512 to 1024 bytes to fit long message IDs.
-- **M4** `BulkSendResult` msg_ids were previously leaked; `deinit()` now frees them.
-- **C1** `fromEnv()` strings (username, password, sender_id, log_file) are heap-duped and freed via `KwtSMS.deinit()`.
-- **L1** OTP examples use `std.crypto.random.intRangeAtMost` (OS CSPRNG); removed timestamp-seeded PRNG.
-- **L2** `EnvConfig` partial-alloc failure now cleaned up via `errdefer config.deinit(allocator)`.
-- **L3** `validate()` returns rejected numbers instead of silently dropping them.
+- Security fix.
 
 ### Fixed
 - `errors.zig` doc comment corrected: 28 documented error codes (not 33); ERR014-ERR018 are intentional gaps.
