@@ -19,7 +19,8 @@ jobs:
       - name: Setup Zig
         uses: goto-bus-stop/setup-zig@v2
         with:
-          version: '0.13.0'
+          # 2026-11-15 16:53 +03: Zig 0.17.1 only, zig-017-port
+          version: '0.17.1'
 
       - name: Build
         run: zig build
