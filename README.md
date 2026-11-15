@@ -3,7 +3,7 @@
 [![CI](https://github.com/kwtsms/kwtsms-zig/actions/workflows/ci.yml/badge.svg)](https://github.com/kwtsms/kwtsms-zig/actions/workflows/ci.yml)
 [![Release](https://github.com/kwtsms/kwtsms-zig/actions/workflows/release.yml/badge.svg)](https://github.com/kwtsms/kwtsms-zig/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Zig](https://img.shields.io/badge/Zig-0.13%2B-orange.svg)](https://ziglang.org/)
+[![Zig](https://img.shields.io/badge/Zig-0.17%2B-orange.svg)](https://ziglang.org/)
 [![GitHub release](https://img.shields.io/github/v/release/kwtsms/kwtsms-zig)](https://github.com/kwtsms/kwtsms-zig/releases)
 
 Zig client for the [kwtSMS API](https://www.kwtsms.com). Send SMS, check balance, validate numbers, list sender IDs, check coverage, get delivery reports.
@@ -14,7 +14,7 @@ kwtSMS is a Kuwaiti SMS gateway trusted by top businesses to deliver messages an
 
 ## Prerequisites
 
-You need **Zig 0.13+** to compile and run. Zero runtime dependencies.
+You need **Zig 0.17+** to compile and run (0.13 users: stay on v0.5.0). Zero runtime dependencies.
 
 ### Step 1: Check if Zig is installed
 
@@ -55,13 +55,13 @@ exe.root_module.addImport("kwtsms", kwtsms_dep.module("kwtsms"));
 const std = @import("std");
 const kwtsms = @import("kwtsms");
 
-pub fn main() !void {
+pub fn main(init: std.process.Init.Minimal) !void {
     const allocator = std.heap.page_allocator;
 
     // Load credentials from environment variables / .env file.
     // Call client.deinit() when done if you use fromEnv() - it frees heap-owned strings.
     // When using KwtSMS.init() with string literals, deinit() is not needed.
-    var client = try kwtsms.KwtSMS.fromEnv(allocator, null);
+    var client = try kwtsms.KwtSMS.fromEnv(allocator, init.environ, null);
     defer client.deinit();
 
     // Verify credentials
@@ -107,13 +107,13 @@ var client = kwtsms.KwtSMS.init(
 );
 ```
 
-`KwtSMS.fromEnv()` reads environment variables first, falls back to `.env` file.
+`KwtSMS.fromEnv(allocator, environ, env_file)` takes the process environment (`init.environ` from `main`) and reads environment variables first, falls back to `.env` file.
 
 ## Credential Management
 
 **Never hardcode credentials.** Use one of these approaches:
 
-1. **Environment variables / .env file** (default): `KwtSMS.fromEnv(allocator, null)` loads from env vars, then `.env` file. The file is `.gitignore`d and editable without redeployment.
+1. **Environment variables / .env file** (default): `KwtSMS.fromEnv(allocator, init.environ, null)` loads from env vars, then `.env` file. The file is `.gitignore`d and editable without redeployment.
 
 2. **Constructor injection**: `KwtSMS.init(allocator, username, password, ...)` for custom config systems or remote config.
 
