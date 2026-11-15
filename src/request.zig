@@ -83,13 +83,16 @@ pub fn apiRequestWithUserAgent(
     };
 
     // Create HTTP client
-    var client = std.http.Client{ .allocator = allocator };
+    // 2026-11-15 16:50 +03: Zig 0.17 std.http.Client needs an std.Io; the process-wide blocking
+    // single-threaded Io keeps the public API unchanged (no Io parameter for callers), zig-017-port.
+    var client = std.http.Client{ .allocator = allocator, .io = std.Io.Threaded.global_single_threaded.io() };
     defer client.deinit();
 
     // Open request
-    var header_buf: [4096]u8 = undefined;
-    var req = client.open(.POST, uri, .{
-        .server_header_buffer = &header_buf,
+    // 2026-11-15 16:49 +03: client.open()/req.wait() became client.request()/req.receiveHead(); redirects are
+    // not followed (HTTPS downgrade hardening, same as the 0.13 behaviour for POST), zig-017-port.
+    var req = client.request(.POST, uri, .{
+        .redirect_behavior = .not_allowed,
         // 2026-11-05 14:24 +03: "kwtsms-zig/<version>", prefixed by the app token when given (#939).
         .headers = .{ .user_agent = .{ .override = user_agent } },
         .extra_headers = &.{
@@ -104,28 +107,37 @@ pub fn apiRequestWithUserAgent(
     defer req.deinit();
 
     // Send body
+    // 2026-11-15 16:49 +03: send()/writer()/finish() became sendBody() + a body writer + end(), zig-017-port.
     req.transfer_encoding = .{ .content_length = json_body.len };
-    req.send() catch {
+    var send_buf: [1024]u8 = undefined;
+    var body_writer = req.sendBody(&send_buf) catch {
         logger.writeLog(log_file, endpoint, json_body, "", false, "Failed to send request");
         return errors.networkError("Failed to send request");
     };
-    req.writer().writeAll(json_body) catch {
+    body_writer.writer.writeAll(json_body) catch {
         logger.writeLog(log_file, endpoint, json_body, "", false, "Failed to write request body");
         return errors.networkError("Failed to write request body");
     };
-    req.finish() catch {
+    body_writer.end() catch {
+        logger.writeLog(log_file, endpoint, json_body, "", false, "Failed to finish request");
+        return errors.networkError("Failed to finish request");
+    };
+    req.connection.?.flush() catch {
         logger.writeLog(log_file, endpoint, json_body, "", false, "Failed to finish request");
         return errors.networkError("Failed to finish request");
     };
 
     // Wait for response
-    req.wait() catch {
+    var redirect_buf: [4096]u8 = undefined;
+    var response = req.receiveHead(&redirect_buf) catch {
         logger.writeLog(log_file, endpoint, json_body, "", false, "Request timed out or failed");
         return errors.networkError("Request timed out or failed");
     };
 
     // Read response body (owned by the returned ApiResponse via raw_body)
-    const body = req.reader().readAllAlloc(allocator, 1024 * 1024) catch {
+    var transfer_buf: [64]u8 = undefined;
+    const body_reader = response.reader(&transfer_buf);
+    const body = body_reader.allocRemaining(allocator, .limited(1024 * 1024)) catch {
         logger.writeLog(log_file, endpoint, json_body, "", false, "Failed to read response body");
         return errors.networkError("Failed to read response body");
     };
@@ -267,8 +279,9 @@ pub fn buildSendBody(
     message: []const u8,
     test_mode: bool,
 ) ?[]const u8 {
-    var fbs = std.io.fixedBufferStream(buf);
-    const w = fbs.writer();
+    // 2026-11-15 16:49 +03: std.io.fixedBufferStream removed; std.Io.Writer.fixed, zig-017-port
+    var fbs = std.Io.Writer.fixed(buf);
+    const w = &fbs;
     w.writeAll("{\"username\":\"") catch return null;
     writeJsonEscaped(w, username) catch return null;
     w.writeAll("\",\"password\":\"") catch return null;
@@ -282,7 +295,7 @@ pub fn buildSendBody(
     w.writeAll("\",\"test\":\"") catch return null;
     w.writeAll(if (test_mode) "1" else "0") catch return null;
     w.writeAll("\"}") catch return null;
-    return fbs.getWritten();
+    return fbs.buffered();
 }
 
 /// Build a JSON request body for auth-only endpoints (balance, senderid, coverage).
@@ -292,14 +305,15 @@ pub fn buildAuthBody(
     username: []const u8,
     password: []const u8,
 ) ?[]const u8 {
-    var fbs = std.io.fixedBufferStream(buf);
-    const w = fbs.writer();
+    // 2026-11-15 16:49 +03: std.io.fixedBufferStream removed; std.Io.Writer.fixed, zig-017-port
+    var fbs = std.Io.Writer.fixed(buf);
+    const w = &fbs;
     w.writeAll("{\"username\":\"") catch return null;
     writeJsonEscaped(w, username) catch return null;
     w.writeAll("\",\"password\":\"") catch return null;
     writeJsonEscaped(w, password) catch return null;
     w.writeAll("\"}") catch return null;
-    return fbs.getWritten();
+    return fbs.buffered();
 }
 
 /// Build a JSON request body for validate endpoint.
@@ -310,8 +324,9 @@ pub fn buildValidateBody(
     password: []const u8,
     mobile: []const u8,
 ) ?[]const u8 {
-    var fbs = std.io.fixedBufferStream(buf);
-    const w = fbs.writer();
+    // 2026-11-15 16:49 +03: std.io.fixedBufferStream removed; std.Io.Writer.fixed, zig-017-port
+    var fbs = std.Io.Writer.fixed(buf);
+    const w = &fbs;
     w.writeAll("{\"username\":\"") catch return null;
     writeJsonEscaped(w, username) catch return null;
     w.writeAll("\",\"password\":\"") catch return null;
@@ -319,7 +334,7 @@ pub fn buildValidateBody(
     w.writeAll("\",\"mobile\":\"") catch return null;
     writeJsonEscaped(w, mobile) catch return null;
     w.writeAll("\"}") catch return null;
-    return fbs.getWritten();
+    return fbs.buffered();
 }
 
 /// Build a JSON request body for status/dlr endpoint.
@@ -330,8 +345,9 @@ pub fn buildMsgIdBody(
     password: []const u8,
     msg_id: []const u8,
 ) ?[]const u8 {
-    var fbs = std.io.fixedBufferStream(buf);
-    const w = fbs.writer();
+    // 2026-11-15 16:49 +03: std.io.fixedBufferStream removed; std.Io.Writer.fixed, zig-017-port
+    var fbs = std.Io.Writer.fixed(buf);
+    const w = &fbs;
     w.writeAll("{\"username\":\"") catch return null;
     writeJsonEscaped(w, username) catch return null;
     w.writeAll("\",\"password\":\"") catch return null;
@@ -339,7 +355,7 @@ pub fn buildMsgIdBody(
     w.writeAll("\",\"msgid\":\"") catch return null;
     writeJsonEscaped(w, msg_id) catch return null;
     w.writeAll("\"}") catch return null;
-    return fbs.getWritten();
+    return fbs.buffered();
 }
 
 // -- Tests --
@@ -438,28 +454,32 @@ test "parseResponse: unknown error code has no action" {
 
 test "writeJsonEscaped: escapes double quote" {
     var buf: [64]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeJsonEscaped(fbs.writer(), "say \"hi\"");
-    try std.testing.expectEqualStrings("say \\\"hi\\\"", fbs.getWritten());
+    // 2026-11-15 16:49 +03: std.io.fixedBufferStream removed; std.Io.Writer.fixed, zig-017-port
+    var fbs = std.Io.Writer.fixed(&buf);
+    try writeJsonEscaped(&fbs, "say \"hi\"");
+    try std.testing.expectEqualStrings("say \\\"hi\\\"", fbs.buffered());
 }
 
 test "writeJsonEscaped: escapes backslash" {
     var buf: [64]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeJsonEscaped(fbs.writer(), "C:\\path");
-    try std.testing.expectEqualStrings("C:\\\\path", fbs.getWritten());
+    // 2026-11-15 16:49 +03: std.io.fixedBufferStream removed; std.Io.Writer.fixed, zig-017-port
+    var fbs = std.Io.Writer.fixed(&buf);
+    try writeJsonEscaped(&fbs, "C:\\path");
+    try std.testing.expectEqualStrings("C:\\\\path", fbs.buffered());
 }
 
 test "writeJsonEscaped: escapes newline" {
     var buf: [64]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeJsonEscaped(fbs.writer(), "line1\nline2");
-    try std.testing.expectEqualStrings("line1\\nline2", fbs.getWritten());
+    // 2026-11-15 16:49 +03: std.io.fixedBufferStream removed; std.Io.Writer.fixed, zig-017-port
+    var fbs = std.Io.Writer.fixed(&buf);
+    try writeJsonEscaped(&fbs, "line1\nline2");
+    try std.testing.expectEqualStrings("line1\\nline2", fbs.buffered());
 }
 
 test "writeJsonEscaped: passes through safe characters" {
     var buf: [64]u8 = undefined;
-    var fbs = std.io.fixedBufferStream(&buf);
-    try writeJsonEscaped(fbs.writer(), "hello world 123");
-    try std.testing.expectEqualStrings("hello world 123", fbs.getWritten());
+    // 2026-11-15 16:49 +03: std.io.fixedBufferStream removed; std.Io.Writer.fixed, zig-017-port
+    var fbs = std.Io.Writer.fixed(&buf);
+    try writeJsonEscaped(&fbs, "hello world 123");
+    try std.testing.expectEqualStrings("hello world 123", fbs.buffered());
 }

@@ -6,8 +6,9 @@ const kwtsms = @import("kwtsms");
 // Run with: zig build test-integration
 
 fn getTestCredentials() ?struct { username: []const u8, password: []const u8 } {
-    const username = std.posix.getenv("ZIG_USERNAME") orelse return null;
-    const password = std.posix.getenv("ZIG_PASSWORD") orelse return null;
+    // 2026-11-15 16:51 +03: std.posix.getenv removed; std.testing.environ.getPosix, zig-017-port
+    const username = std.testing.environ.getPosix("ZIG_USERNAME") orelse return null;
+    const password = std.testing.environ.getPosix("ZIG_PASSWORD") orelse return null;
     if (username.len == 0 or password.len == 0) return null;
     return .{ .username = username, .password = password };
 }
