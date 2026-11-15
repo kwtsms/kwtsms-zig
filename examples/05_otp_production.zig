@@ -54,9 +54,12 @@ fn initStores(allocator: std.mem.Allocator) void {
 /// L1 fix: use std.crypto.random directly instead of seeding a PRNG.
 /// A PRNG seeded from even a secure seed leaks its full state after one observed output.
 fn generateOtp(config: OtpConfig) [6]u8 {
+    // 2026-11-15 16:52 +03: std.crypto.random removed; Random.IoSource over the OS CSPRNG (Io.random), zig-017-port
+    const rng_src: std.Random.IoSource = .{ .io = std.Io.Threaded.global_single_threaded.io() };
+    const rng = rng_src.interface();
     var code: [6]u8 = undefined;
     for (code[0..config.otp_length]) |*c| {
-        c.* = '0' + std.crypto.random.intRangeAtMost(u8, 0, 9);
+        c.* = '0' + rng.intRangeAtMost(u8, 0, 9);
     }
     return code;
 }
@@ -85,7 +88,8 @@ fn sendOtp(
     const normalized = validation.normalized;
 
     // Rate limit: cooldown check
-    const now = std.time.timestamp();
+    // 2026-11-15 16:52 +03: std.time.timestamp removed; Io.Clock.real, zig-017-port
+    const now = std.Io.Clock.real.now(std.Io.Threaded.global_single_threaded.io()).toSeconds();
     if (last_send.get(normalized)) |last_time| {
         const elapsed = now - last_time;
         if (elapsed < config.resend_cooldown_seconds) {
@@ -170,7 +174,8 @@ fn verifyOtp(
     };
 
     // Check expiry
-    const now = std.time.timestamp();
+    // 2026-11-15 16:52 +03: std.time.timestamp removed; Io.Clock.real, zig-017-port
+    const now = std.Io.Clock.real.now(std.Io.Threaded.global_single_threaded.io()).toSeconds();
     if (now - entry.created_at > config.expiry_seconds) {
         _ = otp_store.fetchRemove(normalized);
         return .{ .ok = false, .err = "OTP has expired. Request a new one" };

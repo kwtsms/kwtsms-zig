@@ -17,9 +17,12 @@ pub fn main() !void {
     // Generate OTP using the OS CSPRNG directly.
     // L1 fix: do not use a PRNG seeded from a timestamp - predictable within same second.
     // std.crypto.random draws from the OS entropy source on every call.
+    // 2026-11-15 16:52 +03: std.crypto.random removed; Random.IoSource over the OS CSPRNG (Io.random), zig-017-port
+    const rng_src: std.Random.IoSource = .{ .io = std.Io.Threaded.global_single_threaded.io() };
+    const rng = rng_src.interface();
     var otp_buf: [6]u8 = undefined;
     for (&otp_buf) |*c| {
-        c.* = '0' + std.crypto.random.intRangeAtMost(u8, 0, 9);
+        c.* = '0' + rng.intRangeAtMost(u8, 0, 9);
     }
 
     // Send OTP

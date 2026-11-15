@@ -1,9 +1,10 @@
 const std = @import("std");
 const kwtsms = @import("kwtsms");
 
-pub fn main() !void {
+// 2026-11-15 16:52 +03: main takes Init.Minimal to get the process environment for fromEnv, zig-017-port
+pub fn main(init: std.process.Init.Minimal) !void {
     const allocator = std.heap.page_allocator;
-    var client = try kwtsms.KwtSMS.fromEnv(allocator, null);
+    var client = try kwtsms.KwtSMS.fromEnv(allocator, init.environ, null);
 
     // Phone validation
     const validation = try kwtsms.validatePhoneInput(allocator, "user@example.com");
