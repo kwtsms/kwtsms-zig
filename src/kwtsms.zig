@@ -83,7 +83,8 @@ pub const KwtSMS = struct {
     log_file: ?[]const u8,
     cached_balance: ?f64,
     cached_purchased: ?f64,
-    mutex: std.Thread.Mutex,
+    // 2026-11-15 16:52 +03: std.Thread.Mutex removed; std.Io.Mutex locked with the process-wide blocking Io, zig-017-port
+    mutex: std.Io.Mutex,
     // 2026-11-05 14:24 +03: User-Agent "[app token ]kwtsms-zig/<version>"; empty (len 0) = library token only (#939).
     _ua_buf: [request.user_agent_max]u8 = undefined,
     _ua_len: usize = 0,
@@ -127,7 +128,7 @@ pub const KwtSMS = struct {
             .log_file = log_file orelse "kwtsms.log",
             .cached_balance = null,
             .cached_purchased = null,
-            .mutex = .{},
+            .mutex = .init,
         };
     }
 
@@ -135,8 +136,9 @@ pub const KwtSMS = struct {
     /// C1 fix: config strings that came from the .env file are heap-duped by loadConfig.
     /// We store the EnvConfig in _env_config so they stay alive as long as the client does.
     /// Call client.deinit() when done to free them.
-    pub fn fromEnv(allocator: std.mem.Allocator, env_file: ?[]const u8) !KwtSMS {
-        const config = try env.loadConfig(allocator, env_file orelse ".env");
+    // 2026-11-15 16:51 +03: added the environ parameter (Zig 0.16+ has no global process environment; pass main's init.environ), zig-017-port
+    pub fn fromEnv(allocator: std.mem.Allocator, environ: std.process.Environ, env_file: ?[]const u8) !KwtSMS {
+        const config = try env.loadConfig(allocator, environ, env_file orelse ".env");
         return KwtSMS{
             .allocator = allocator,
             .username = config.username orelse "",
@@ -146,7 +148,7 @@ pub const KwtSMS = struct {
             .log_file = config.log_file orelse "kwtsms.log",
             .cached_balance = null,
             .cached_purchased = null,
-            .mutex = .{},
+            .mutex = .init,
             ._env_config = config, // keeps duped strings alive
         };
     }
@@ -162,8 +164,8 @@ pub const KwtSMS = struct {
         const resp = try request.apiRequestWithUserAgent(self.allocator, "balance", body, self.log_file, self.userAgent());
 
         if (resp.isOk()) {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+            self.mutex.lockUncancelable(std.Io.Threaded.global_single_threaded.io());
+            defer self.mutex.unlock(std.Io.Threaded.global_single_threaded.io());
             self.cached_balance = resp.available;
             self.cached_purchased = resp.purchased;
             return .{ .ok = true, .balance = resp.available, .err = null };
@@ -179,22 +181,22 @@ pub const KwtSMS = struct {
             return result.balance;
         }
         // Return cached value if available
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        self.mutex.lockUncancelable(std.Io.Threaded.global_single_threaded.io());
+        defer self.mutex.unlock(std.Io.Threaded.global_single_threaded.io());
         return self.cached_balance;
     }
 
     /// Get cached balance (no API call).
     pub fn cachedBalance(self: *KwtSMS) ?f64 {
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        self.mutex.lockUncancelable(std.Io.Threaded.global_single_threaded.io());
+        defer self.mutex.unlock(std.Io.Threaded.global_single_threaded.io());
         return self.cached_balance;
     }
 
     /// Get cached purchased credits (no API call).
     pub fn cachedPurchased(self: *KwtSMS) ?f64 {
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        self.mutex.lockUncancelable(std.Io.Threaded.global_single_threaded.io());
+        defer self.mutex.unlock(std.Io.Threaded.global_single_threaded.io());
         return self.cached_purchased;
     }
 
@@ -217,8 +219,8 @@ pub const KwtSMS = struct {
 
         // Cache balance from response
         if (resp.balance_after) |bal| {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+            self.mutex.lockUncancelable(std.Io.Threaded.global_single_threaded.io());
+            defer self.mutex.unlock(std.Io.Threaded.global_single_threaded.io());
             self.cached_balance = bal;
         }
 
@@ -230,10 +232,11 @@ pub const KwtSMS = struct {
         valid: std.ArrayList([]const u8),
         seen: std.StringHashMap(void),
     } {
-        var valid_numbers = std.ArrayList([]const u8).init(self.allocator);
+        // 2026-11-15 16:51 +03: ArrayList is unmanaged in 0.15+ (.empty, allocator per call), zig-017-port
+        var valid_numbers: std.ArrayList([]const u8) = .empty;
         errdefer {
             for (valid_numbers.items) |n| self.allocator.free(@constCast(n));
-            valid_numbers.deinit();
+            valid_numbers.deinit(self.allocator);
         }
 
         var seen = std.StringHashMap(void).init(self.allocator);
@@ -267,7 +270,7 @@ pub const KwtSMS = struct {
             // M2 fix: append before put so that if seen.put fails (OOM), we can undo
             // the append and free the normalized string cleanly. This closes the window
             // where normalized would be in seen but not in valid_numbers, leaking on error.
-            try valid_numbers.append(validation.normalized);
+            try valid_numbers.append(self.allocator, validation.normalized);
             seen.put(validation.normalized, {}) catch |err| {
                 _ = valid_numbers.pop();
                 self.allocator.free(@constCast(validation.normalized));
@@ -280,13 +283,14 @@ pub const KwtSMS = struct {
 
     /// Build comma-separated string from a slice of numbers.
     fn buildMobileCsv(self: *KwtSMS, numbers: []const []const u8) ![]u8 {
-        var mobile_buf = std.ArrayList(u8).init(self.allocator);
-        errdefer mobile_buf.deinit();
+        // 2026-11-15 16:51 +03: ArrayList is unmanaged in 0.15+ (.empty, allocator per call), zig-017-port
+        var mobile_buf: std.ArrayList(u8) = .empty;
+        errdefer mobile_buf.deinit(self.allocator);
         for (numbers, 0..) |num, idx| {
-            if (idx > 0) try mobile_buf.append(',');
-            try mobile_buf.appendSlice(num);
+            if (idx > 0) try mobile_buf.append(self.allocator, ',');
+            try mobile_buf.appendSlice(self.allocator, num);
         }
-        return try mobile_buf.toOwnedSlice();
+        return try mobile_buf.toOwnedSlice(self.allocator);
     }
 
     /// Send SMS to one or more phone numbers.
@@ -309,7 +313,7 @@ pub const KwtSMS = struct {
         var prepared = try self.prepareNumbers(mobiles);
         defer {
             for (prepared.valid.items) |n| self.allocator.free(@constCast(n));
-            prepared.valid.deinit();
+            prepared.valid.deinit(self.allocator);
             prepared.seen.deinit();
         }
 
@@ -336,7 +340,8 @@ pub const KwtSMS = struct {
             const batch = prepared.valid.items[offset..end];
 
             if (batch_count > 0) {
-                std.time.sleep(1 * std.time.ns_per_s);
+                // 2026-11-15 16:51 +03: std.time.sleep removed; Io.sleep, zig-017-port
+                std.Io.sleep(std.Io.Threaded.global_single_threaded.io(), .fromSeconds(1), .awake) catch {};
             }
 
             const csv = try self.buildMobileCsv(batch);
@@ -391,7 +396,7 @@ pub const KwtSMS = struct {
         var prepared = try self.prepareNumbers(mobiles);
         defer {
             for (prepared.valid.items) |n| self.allocator.free(@constCast(n));
-            prepared.valid.deinit();
+            prepared.valid.deinit(self.allocator);
             prepared.seen.deinit();
         }
 
@@ -411,13 +416,15 @@ pub const KwtSMS = struct {
 
         // Split into batches of 200
         const batch_size: usize = 200;
-        var msg_ids = std.ArrayList([]const u8).init(self.allocator);
+        // 2026-11-15 16:51 +03: ArrayList is unmanaged in 0.15+ (.empty, allocator per call), zig-017-port
+        var msg_ids: std.ArrayList([]const u8) = .empty;
         errdefer {
             for (msg_ids.items) |id| self.allocator.free(@constCast(id));
-            msg_ids.deinit();
+            msg_ids.deinit(self.allocator);
         }
-        var batch_errors = std.ArrayList(ApiResponse).init(self.allocator);
-        errdefer batch_errors.deinit();
+        // 2026-11-15 16:51 +03: ArrayList is unmanaged in 0.15+ (.empty, allocator per call), zig-017-port
+        var batch_errors: std.ArrayList(ApiResponse) = .empty;
+        errdefer batch_errors.deinit(self.allocator);
 
         var total_numbers: usize = 0;
         var total_points: i64 = 0;
@@ -433,7 +440,8 @@ pub const KwtSMS = struct {
 
             // Delay between batches (1 second)
             if (batch_count > 0) {
-                std.time.sleep(1 * std.time.ns_per_s);
+                // 2026-11-15 16:51 +03: std.time.sleep removed; Io.sleep, zig-017-port
+                std.Io.sleep(std.Io.Threaded.global_single_threaded.io(), .fromSeconds(1), .awake) catch {};
             }
 
             const csv = try self.buildMobileCsv(batch);
@@ -444,14 +452,14 @@ pub const KwtSMS = struct {
             if (resp.isOk()) {
                 any_ok = true;
                 if (resp.msg_id) |id| {
-                    try msg_ids.append(try self.allocator.dupe(u8, id));
+                    try msg_ids.append(self.allocator, try self.allocator.dupe(u8, id));
                 }
                 if (resp.numbers) |n| total_numbers += @intCast(n);
                 if (resp.points_charged) |p| total_points += p;
                 if (resp.balance_after) |b| last_balance = b;
             } else {
                 all_ok = false;
-                try batch_errors.append(resp);
+                try batch_errors.append(self.allocator, resp);
             }
 
             batch_count += 1;
@@ -467,8 +475,8 @@ pub const KwtSMS = struct {
             .numbers = total_numbers,
             .points_charged = total_points,
             .balance_after = last_balance,
-            .msg_ids = try msg_ids.toOwnedSlice(),
-            .batch_errors = try batch_errors.toOwnedSlice(),
+            .msg_ids = try msg_ids.toOwnedSlice(self.allocator),
+            .batch_errors = try batch_errors.toOwnedSlice(self.allocator),
             .invalid = try self.allocator.alloc(InvalidEntry, 0),
         };
     }
@@ -483,23 +491,25 @@ pub const KwtSMS = struct {
     /// Returns a ValidateResult containing the API response and any locally-rejected numbers.
     /// Call result.deinit(allocator) when done.
     pub fn validate(self: *KwtSMS, phones: []const []const u8) !ValidateResult {
-        var valid_numbers = std.ArrayList([]const u8).init(self.allocator);
+        // 2026-11-15 16:51 +03: ArrayList is unmanaged in 0.15+ (.empty, allocator per call), zig-017-port
+        var valid_numbers: std.ArrayList([]const u8) = .empty;
         defer {
             for (valid_numbers.items) |n| self.allocator.free(@constCast(n));
-            valid_numbers.deinit();
+            valid_numbers.deinit(self.allocator);
         }
 
         // L3 fix: collect rejected numbers instead of silently discarding them.
-        var rejected = std.ArrayList(InvalidEntry).init(self.allocator);
+        // 2026-11-15 16:51 +03: ArrayList is unmanaged in 0.15+ (.empty, allocator per call), zig-017-port
+        var rejected: std.ArrayList(InvalidEntry) = .empty;
         errdefer {
             for (rejected.items) |entry| self.allocator.free(@constCast(entry.err));
-            rejected.deinit();
+            rejected.deinit(self.allocator);
         }
 
         for (phones) |p| {
             const validation = try validatePhoneInput(self.allocator, p);
             if (validation.valid) {
-                try valid_numbers.append(validation.normalized);
+                try valid_numbers.append(self.allocator, validation.normalized);
             } else {
                 // Dupe the error string so InvalidEntry always owns it.
                 const err_str = if (validation.err) |e| e else "invalid phone number";
@@ -512,11 +522,11 @@ pub const KwtSMS = struct {
                 if (validation.normalized.len > 0) {
                     self.allocator.free(@constCast(validation.normalized));
                 }
-                try rejected.append(InvalidEntry{ .input = p, .err = owned_err });
+                try rejected.append(self.allocator, InvalidEntry{ .input = p, .err = owned_err });
             }
         }
 
-        const rejected_slice = try rejected.toOwnedSlice();
+        const rejected_slice = try rejected.toOwnedSlice(self.allocator);
 
         if (valid_numbers.items.len == 0) {
             return ValidateResult{
@@ -526,11 +536,12 @@ pub const KwtSMS = struct {
         }
 
         // Build comma-separated mobile string
-        var mobile_buf = std.ArrayList(u8).init(self.allocator);
-        defer mobile_buf.deinit();
+        // 2026-11-15 16:51 +03: ArrayList is unmanaged in 0.15+ (.empty, allocator per call), zig-017-port
+        var mobile_buf: std.ArrayList(u8) = .empty;
+        defer mobile_buf.deinit(self.allocator);
         for (valid_numbers.items, 0..) |num, idx| {
-            if (idx > 0) try mobile_buf.append(',');
-            try mobile_buf.appendSlice(num);
+            if (idx > 0) try mobile_buf.append(self.allocator, ',');
+            try mobile_buf.appendSlice(self.allocator, num);
         }
 
         var body_buf: [8192]u8 = undefined;
@@ -663,13 +674,14 @@ test "KwtSMS.fromEnv: strings from .env file are valid after return (C1 fix)" {
 
     const tmp_path = "/tmp/kwtsms_test_fromenv_uaf";
     {
-        const f = try std.fs.cwd().createFile(tmp_path, .{});
-        defer f.close();
-        try f.writeAll("KWTSMS_USERNAME=envuser\nKWTSMS_PASSWORD=envpass\nKWTSMS_SENDER_ID=ENVSENDER\n");
+        // 2026-11-15 16:51 +03: test file IO moved to Io.Dir with std.testing.io, zig-017-port
+        const f = try std.Io.Dir.cwd().createFile(std.testing.io, tmp_path, .{});
+        defer f.close(std.testing.io);
+        try f.writeStreamingAll(std.testing.io, "KWTSMS_USERNAME=envuser\nKWTSMS_PASSWORD=envpass\nKWTSMS_SENDER_ID=ENVSENDER\n");
     }
-    defer std.fs.cwd().deleteFile(tmp_path) catch {};
+    defer std.Io.Dir.cwd().deleteFile(std.testing.io, tmp_path) catch {};
 
-    var client = try KwtSMS.fromEnv(allocator, tmp_path);
+    var client = try KwtSMS.fromEnv(allocator, std.testing.environ, tmp_path);
     defer client.deinit();
 
     // These must be valid strings (not dangling pointers into freed env_map memory)
@@ -780,7 +792,9 @@ test "buildUserAgent: removes CR/LF and non-ASCII, limits length" {
     try std.testing.expect(std.mem.indexOfAny(u8, ua, "\r\n") == null);
     try std.testing.expect(std.mem.indexOf(u8, ua, " X-Injected") == null);
     try std.testing.expectEqualStrings("my-appX-Injected:-1 kwtsms-zig/" ++ version, ua);
-    const long = buildUserAgent(&buf, "a" ** 200);
+    // 2026-11-15 16:51 +03: the `**` array repeat operator was removed in Zig 0.17; @splat, zig-017-port
+    const long_name: [200]u8 = @splat('a');
+    const long = buildUserAgent(&buf, &long_name);
     try std.testing.expectEqual(@as(usize, 64), std.mem.indexOfScalar(u8, long, ' ').?);
     try std.testing.expectEqualStrings("kwtsms-zig/" ++ version, buildUserAgent(&buf, " \r\n "));
     try std.testing.expectEqualStrings("shop/1.0 kwtsms-zig/" ++ version, buildUserAgent(&buf, "\u{0643}\u{0648}shop/1.0"));

@@ -26,9 +26,12 @@ fn writeLogInner(
     ok: bool,
     err_msg: ?[]const u8,
 ) !void {
-    const file = try std.fs.cwd().createFile(path, .{ .truncate = false });
-    defer file.close();
-    try file.seekFromEnd(0);
+    // 2026-11-15 16:50 +03: file IO moved to Io.Dir/Io.File (io argument); append = seek the writer to the current length,
+    // process-wide blocking Io keeps writeLog's signature, zig-017-port.
+    const io = std.Io.Threaded.global_single_threaded.io();
+    const file = try std.Io.Dir.cwd().createFile(io, path, .{ .truncate = false });
+    defer file.close(io);
+    const file_len = try file.length(io);
 
     var buf: [64]u8 = undefined;
     const ts = getUtcTimestamp(&buf);
@@ -39,7 +42,11 @@ fn writeLogInner(
     var masked_buf: [8192]u8 = undefined;
     const masked_request = maskPassword(request_body, &masked_buf);
 
-    var writer = file.writer();
+    // 2026-11-15 16:50 +03: File.writer(io, buffer) replaces file.writer(); flush before close, zig-017-port.
+    var fw_buf: [1024]u8 = undefined;
+    var fw = file.writer(io, &fw_buf);
+    try fw.seekTo(file_len);
+    const writer = &fw.interface;
     try writer.print("{{\"ts\":\"{s}\",\"endpoint\":\"{s}\",\"request\":{s},\"response\":{s},\"ok\":{},\"error\":", .{
         ts,
         endpoint,
@@ -59,6 +66,7 @@ fn writeLogInner(
     }
 
     try writer.writeAll("}\n");
+    try writer.flush();
 }
 
 /// Write s as a JSON string value (no surrounding quotes). Escapes special chars.
@@ -77,7 +85,8 @@ fn writeJsonEscaped(writer: anytype, s: []const u8) !void {
 }
 
 fn getUtcTimestamp(buf: []u8) []const u8 {
-    const epoch = std.time.timestamp();
+    // 2026-11-15 16:50 +03: std.time.timestamp removed; Io.Clock.real, zig-017-port
+    const epoch = std.Io.Clock.real.now(std.Io.Threaded.global_single_threaded.io()).toSeconds();
     const es = std.time.epoch.EpochSeconds{ .secs = @intCast(epoch) };
     const day = es.getEpochDay();
     const yd = day.calculateYearDay();
@@ -86,7 +95,7 @@ fn getUtcTimestamp(buf: []u8) []const u8 {
 
     const result = std.fmt.bufPrint(buf, "{d:0>4}-{d:0>2}-{d:0>2}T{d:0>2}:{d:0>2}:{d:0>2}Z", .{
         yd.year,
-        @as(u32, @intFromEnum(md.month)) + 1,
+        @as(u32, @backingInt(md.month)) + 1,
         @as(u32, md.day_index) + 1,
         ds.getHoursIntoDay(),
         ds.getMinutesIntoHour(),
@@ -175,13 +184,13 @@ test "writeLog: does not crash with empty path" {
 test "writeLog: error field is valid JSON (quoted string)" {
     // M1 fix verification: error messages must be JSON-quoted, not bare text.
     const tmp_path = "/tmp/kwtsms_test_logger_jsonl";
-    defer std.fs.cwd().deleteFile(tmp_path) catch {};
+    defer std.Io.Dir.cwd().deleteFile(std.testing.io, tmp_path) catch {};
 
     writeLog(tmp_path, "send", "{}", "{}", false, "Authentication error, check credentials");
 
     // Read the log and verify it contains a properly quoted error field
     const allocator = std.testing.allocator;
-    const content = try std.fs.cwd().readFileAlloc(allocator, tmp_path, 4096);
+    const content = try std.Io.Dir.cwd().readFileAlloc(std.testing.io, tmp_path, allocator, .limited(4096));
     defer allocator.free(content);
 
     try std.testing.expect(std.mem.indexOf(u8, content, "\"error\":\"Authentication error") != null);
@@ -192,12 +201,12 @@ test "writeLog: error field is valid JSON (quoted string)" {
 test "writeLog: error field with special chars is properly escaped" {
     // M1 fix: error messages containing quotes must be escaped
     const tmp_path = "/tmp/kwtsms_test_logger_escape";
-    defer std.fs.cwd().deleteFile(tmp_path) catch {};
+    defer std.Io.Dir.cwd().deleteFile(std.testing.io, tmp_path) catch {};
 
     writeLog(tmp_path, "send", "{}", "{}", false, "Error: \"invalid\" response");
 
     const allocator = std.testing.allocator;
-    const content = try std.fs.cwd().readFileAlloc(allocator, tmp_path, 4096);
+    const content = try std.Io.Dir.cwd().readFileAlloc(std.testing.io, tmp_path, allocator, .limited(4096));
     defer allocator.free(content);
 
     try std.testing.expect(std.mem.indexOf(u8, content, "\\\"invalid\\\"") != null);
@@ -205,12 +214,12 @@ test "writeLog: error field with special chars is properly escaped" {
 
 test "writeLog: null error field writes null" {
     const tmp_path = "/tmp/kwtsms_test_logger_null_err";
-    defer std.fs.cwd().deleteFile(tmp_path) catch {};
+    defer std.Io.Dir.cwd().deleteFile(std.testing.io, tmp_path) catch {};
 
     writeLog(tmp_path, "balance", "{}", "{}", true, null);
 
     const allocator = std.testing.allocator;
-    const content = try std.fs.cwd().readFileAlloc(allocator, tmp_path, 4096);
+    const content = try std.Io.Dir.cwd().readFileAlloc(std.testing.io, tmp_path, allocator, .limited(4096));
     defer allocator.free(content);
 
     try std.testing.expect(std.mem.indexOf(u8, content, "\"error\":null") != null);

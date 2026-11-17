@@ -19,19 +19,19 @@ const TEST_MODE = true; // true = messages queued but NOT delivered (credits hel
 const API_BASE = "https://www.kwtsms.com/API/";
 
 /// POST JSON to a kwtSMS endpoint and return the raw response body.
-fn apiPost(allocator: std.mem.Allocator, endpoint: []const u8, json_body: []const u8) ![]u8 {
+/// 2026-11-15 16:52 +03: takes an std.Io (Zig 0.17 http.Client needs one); open/send/finish/wait became
+/// request/sendBody/end/receiveHead, zig-017-port.
+fn apiPost(allocator: std.mem.Allocator, io: std.Io, endpoint: []const u8, json_body: []const u8) ![]u8 {
     // Build URL: https://www.kwtsms.com/API/<endpoint>/
     var url_buf: [256]u8 = undefined;
     const url = try std.fmt.bufPrint(&url_buf, "{s}{s}/", .{ API_BASE, endpoint });
     const uri = try std.Uri.parse(url);
 
     // Create HTTP client and request
-    var client = std.http.Client{ .allocator = allocator };
+    var client = std.http.Client{ .allocator = allocator, .io = io };
     defer client.deinit();
 
-    var header_buf: [4096]u8 = undefined;
-    var req = try client.open(.POST, uri, .{
-        .server_header_buffer = &header_buf,
+    var req = try client.request(.POST, uri, .{
         .extra_headers = &.{
             .{ .name = "Content-Type", .value = "application/json" },
             .{ .name = "Accept", .value = "application/json" },
@@ -41,18 +41,27 @@ fn apiPost(allocator: std.mem.Allocator, endpoint: []const u8, json_body: []cons
 
     // Send JSON body
     req.transfer_encoding = .{ .content_length = json_body.len };
-    try req.send();
-    try req.writer().writeAll(json_body);
-    try req.finish();
-    try req.wait();
+    var send_buf: [1024]u8 = undefined;
+    var body_writer = try req.sendBody(&send_buf);
+    try body_writer.writer.writeAll(json_body);
+    try body_writer.end();
+    try req.connection.?.flush();
 
     // Read entire response
-    return try req.reader().readAllAlloc(allocator, 1024 * 1024);
+    var redirect_buf: [4096]u8 = undefined;
+    var response = try req.receiveHead(&redirect_buf);
+    var transfer_buf: [64]u8 = undefined;
+    return try response.reader(&transfer_buf).allocRemaining(allocator, .limited(1024 * 1024));
 }
 
-pub fn main() !void {
-    const allocator = std.heap.page_allocator;
-    const out = std.io.getStdOut().writer();
+// 2026-11-15 16:52 +03: main takes std.process.Init (gpa + io); stdout is a buffered File.Writer, zig-017-port
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.gpa;
+    const io = init.io;
+    var out_buf: [4096]u8 = undefined;
+    var out_writer = std.Io.File.stdout().writer(io, &out_buf);
+    const out = &out_writer.interface;
+    defer out.flush() catch {};
 
     // ═══════════════════════════════════════════════════════════════════════
     // 1. BALANCE - Check account balance
@@ -64,7 +73,7 @@ pub fn main() !void {
             \\{{"username":"{s}","password":"{s}"}}
         , .{ USERNAME, PASSWORD });
 
-        const response = try apiPost(allocator, "balance", body);
+        const response = try apiPost(allocator, io, "balance", body);
         try out.print("Request:  POST /API/balance/\n", .{});
         try out.print("Response: {s}\n", .{response});
         // Expected: {"result":"OK","available":150,"purchased":1000}
@@ -80,7 +89,7 @@ pub fn main() !void {
             \\{{"username":"{s}","password":"{s}"}}
         , .{ USERNAME, PASSWORD });
 
-        const response = try apiPost(allocator, "senderid", body);
+        const response = try apiPost(allocator, io, "senderid", body);
         try out.print("Request:  POST /API/senderid/\n", .{});
         try out.print("Response: {s}\n", .{response});
         // Expected: {"result":"OK","senderid":["KWT-SMS","MY-APP"]}
@@ -96,7 +105,7 @@ pub fn main() !void {
             \\{{"username":"{s}","password":"{s}"}}
         , .{ USERNAME, PASSWORD });
 
-        const response = try apiPost(allocator, "coverage", body);
+        const response = try apiPost(allocator, io, "coverage", body);
         try out.print("Request:  POST /API/coverage/\n", .{});
         try out.print("Response: {s}\n", .{response});
         // Expected: {"result":"OK","coverage":["965","966","971",...]}
@@ -112,7 +121,7 @@ pub fn main() !void {
             \\{{"username":"{s}","password":"{s}","mobile":"965XXXXXXXX,96512345678,invalid123"}}
         , .{ USERNAME, PASSWORD });
 
-        const response = try apiPost(allocator, "validate", body);
+        const response = try apiPost(allocator, io, "validate", body);
         try out.print("Request:  POST /API/validate/\n", .{});
         try out.print("Numbers:  965XXXXXXXX, 96512345678, invalid123\n", .{});
         try out.print("Response: {s}\n", .{response});
@@ -130,7 +139,7 @@ pub fn main() !void {
             \\{{"username":"{s}","password":"{s}","sender":"{s}","mobile":"965XXXXXXXX","message":"Hello from Zig raw API example","test":"{s}"}}
         , .{ USERNAME, PASSWORD, SENDER_ID, if (TEST_MODE) "1" else "0" });
 
-        const response = try apiPost(allocator, "send", body);
+        const response = try apiPost(allocator, io, "send", body);
         try out.print("Request:  POST /API/send/\n", .{});
         try out.print("To:       965XXXXXXXX\n", .{});
         try out.print("Message:  Hello from Zig raw API example\n", .{});
@@ -155,7 +164,7 @@ pub fn main() !void {
             \\{{"username":"{s}","password":"{s}","sender":"{s}","mobile":"965XXXXXXXX,96512345678","message":"Bulk hello from Zig","test":"{s}"}}
         , .{ USERNAME, PASSWORD, SENDER_ID, if (TEST_MODE) "1" else "0" });
 
-        const response = try apiPost(allocator, "send", body);
+        const response = try apiPost(allocator, io, "send", body);
         try out.print("Request:  POST /API/send/\n", .{});
         try out.print("To:       965XXXXXXXX, 96512345678\n", .{});
         try out.print("Response: {s}\n", .{response});
@@ -172,7 +181,7 @@ pub fn main() !void {
             \\{{"username":"{s}","password":"{s}","msgid":"{s}"}}
         , .{ USERNAME, PASSWORD, msg_id });
 
-        const response = try apiPost(allocator, "status", body);
+        const response = try apiPost(allocator, io, "status", body);
         try out.print("Request:  POST /API/status/\n", .{});
         try out.print("msg-id:   {s}\n", .{msg_id});
         try out.print("Response: {s}\n", .{response});
@@ -192,7 +201,7 @@ pub fn main() !void {
             \\{{"username":"{s}","password":"{s}","msgid":"{s}"}}
         , .{ USERNAME, PASSWORD, msg_id });
 
-        const response = try apiPost(allocator, "dlr", body);
+        const response = try apiPost(allocator, io, "dlr", body);
         try out.print("Request:  POST /API/dlr/\n", .{});
         try out.print("msg-id:   {s}\n", .{msg_id});
         try out.print("Response: {s}\n", .{response});

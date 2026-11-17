@@ -7,7 +7,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [0.6.0] - 2026-11-17
+
+This release needs Zig 0.17 or later. On an older Zig, stay on 0.5.0.
+
+### Changed
+
+- Requires Zig 0.17 (was 0.13). `build.zig.zon` now has an enum-literal name and a fingerprint, and `minimum_zig_version` is 0.17.0. CI and release builds use Zig 0.17.1.
+- `KwtSMS.fromEnv(allocator, environ, env_file)` and `env.loadConfig(allocator, environ, env_file)` take the process environment as a new second argument (Zig 0.16+ has no global environment); pass `init.environ` from `main(init: std.process.Init.Minimal)`. Environment lookup is POSIX only.
 
 ## [0.5.0] - 2026-11-06
 

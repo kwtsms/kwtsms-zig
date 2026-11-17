@@ -36,16 +36,13 @@ pub const EnvConfig = struct {
 pub fn loadEnvFile(allocator: std.mem.Allocator, path: []const u8) !std.StringHashMap([]const u8) {
     var map = std.StringHashMap([]const u8).init(allocator);
 
-    const file = std.fs.cwd().openFile(path, .{}) catch {
-        return map; // File not found: return empty map
-    };
-    defer file.close();
-
-    const content = file.readToEndAlloc(allocator, 1024 * 1024) catch {
-        return map;
+    // 2026-11-15 16:50 +03: std.fs.cwd().openFile + readToEndAlloc became Io.Dir.readFileAlloc(io, ...); the process-wide
+    // blocking Io is used so loadEnvFile keeps its signature, zig-017-port.
+    const io = std.Io.Threaded.global_single_threaded.io();
+    const content = std.Io.Dir.cwd().readFileAlloc(io, path, allocator, .limited(1024 * 1024)) catch {
+        return map; // File not found or unreadable: return empty map
     };
     defer allocator.free(content);
-
     var lines = std.mem.splitSequence(u8, content, "\n");
     while (lines.next()) |line| {
         const trimmed = std.mem.trim(u8, line, " \t\r");
@@ -86,7 +83,9 @@ pub fn loadEnvFile(allocator: std.mem.Allocator, path: []const u8) !std.StringHa
 /// Load kwtSMS configuration from environment variables, falling back to .env file.
 /// Process environment variables take priority. Values loaded from the .env file
 /// are heap-duped; caller must call EnvConfig.deinit(allocator) when done.
-pub fn loadConfig(allocator: std.mem.Allocator, env_file: []const u8) !EnvConfig {
+// 2026-11-15 16:50 +03: added the environ parameter; Zig 0.16+ has no global process environment (std.posix.getenv removed),
+// the caller passes std.process.Environ (main's init.environ), POSIX targets only (getPosix), zig-017-port.
+pub fn loadConfig(allocator: std.mem.Allocator, environ: std.process.Environ, env_file: []const u8) !EnvConfig {
     var config = EnvConfig{};
     // Free any duped strings if we error out mid-way
     errdefer config.deinit(allocator);
@@ -104,35 +103,35 @@ pub fn loadConfig(allocator: std.mem.Allocator, env_file: []const u8) !EnvConfig
 
     // For each field: process env takes priority (stable pointer, no free needed).
     // Fallback to .env file: dupe the value so it survives after the map is freed.
-    if (std.posix.getenv("KWTSMS_USERNAME")) |v| {
+    if (environ.getPosix("KWTSMS_USERNAME")) |v| {
         config.username = v;
     } else if (env_map.get("KWTSMS_USERNAME")) |v| {
         config.username = try allocator.dupe(u8, v);
         config._owned_username = true;
     }
 
-    if (std.posix.getenv("KWTSMS_PASSWORD")) |v| {
+    if (environ.getPosix("KWTSMS_PASSWORD")) |v| {
         config.password = v;
     } else if (env_map.get("KWTSMS_PASSWORD")) |v| {
         config.password = try allocator.dupe(u8, v);
         config._owned_password = true;
     }
 
-    if (std.posix.getenv("KWTSMS_SENDER_ID")) |v| {
+    if (environ.getPosix("KWTSMS_SENDER_ID")) |v| {
         config.sender_id = v;
     } else if (env_map.get("KWTSMS_SENDER_ID")) |v| {
         config.sender_id = try allocator.dupe(u8, v);
         config._owned_sender_id = true;
     }
 
-    if (std.posix.getenv("KWTSMS_LOG_FILE")) |v| {
+    if (environ.getPosix("KWTSMS_LOG_FILE")) |v| {
         config.log_file = v;
     } else if (env_map.get("KWTSMS_LOG_FILE")) |v| {
         config.log_file = try allocator.dupe(u8, v);
         config._owned_log_file = true;
     }
 
-    const test_mode_str = std.posix.getenv("KWTSMS_TEST_MODE") orelse env_map.get("KWTSMS_TEST_MODE") orelse "0";
+    const test_mode_str = environ.getPosix("KWTSMS_TEST_MODE") orelse env_map.get("KWTSMS_TEST_MODE") orelse "0";
     config.test_mode = std.mem.eql(u8, test_mode_str, "1") or std.mem.eql(u8, test_mode_str, "true");
 
     return config;
@@ -152,11 +151,12 @@ test "loadEnvFile: parses key=value" {
     // Write a temp .env file
     const tmp_path = "/tmp/kwtsms_test_env_parse";
     {
-        const f = try std.fs.cwd().createFile(tmp_path, .{});
-        defer f.close();
-        try f.writeAll("KWTSMS_USERNAME=testuser\nKWTSMS_PASSWORD=testpass\n");
+        // 2026-11-15 16:50 +03: test file IO moved to Io.Dir with std.testing.io, zig-017-port
+        const f = try std.Io.Dir.cwd().createFile(std.testing.io, tmp_path, .{});
+        defer f.close(std.testing.io);
+        try f.writeStreamingAll(std.testing.io, "KWTSMS_USERNAME=testuser\nKWTSMS_PASSWORD=testpass\n");
     }
-    defer std.fs.cwd().deleteFile(tmp_path) catch {};
+    defer std.Io.Dir.cwd().deleteFile(std.testing.io, tmp_path) catch {};
 
     var map = try loadEnvFile(allocator, tmp_path);
     defer {
@@ -177,11 +177,12 @@ test "loadEnvFile: strips quotes" {
 
     const tmp_path = "/tmp/kwtsms_test_env_quotes";
     {
-        const f = try std.fs.cwd().createFile(tmp_path, .{});
-        defer f.close();
-        try f.writeAll("KEY1=\"double quoted\"\nKEY2='single quoted'\n");
+        // 2026-11-15 16:50 +03: test file IO moved to Io.Dir with std.testing.io, zig-017-port
+        const f = try std.Io.Dir.cwd().createFile(std.testing.io, tmp_path, .{});
+        defer f.close(std.testing.io);
+        try f.writeStreamingAll(std.testing.io, "KEY1=\"double quoted\"\nKEY2='single quoted'\n");
     }
-    defer std.fs.cwd().deleteFile(tmp_path) catch {};
+    defer std.Io.Dir.cwd().deleteFile(std.testing.io, tmp_path) catch {};
 
     var map = try loadEnvFile(allocator, tmp_path);
     defer {
@@ -202,11 +203,12 @@ test "loadEnvFile: skips comments and blank lines" {
 
     const tmp_path = "/tmp/kwtsms_test_env_comments";
     {
-        const f = try std.fs.cwd().createFile(tmp_path, .{});
-        defer f.close();
-        try f.writeAll("# This is a comment\n\nKEY=value\n# Another comment\n");
+        // 2026-11-15 16:50 +03: test file IO moved to Io.Dir with std.testing.io, zig-017-port
+        const f = try std.Io.Dir.cwd().createFile(std.testing.io, tmp_path, .{});
+        defer f.close(std.testing.io);
+        try f.writeStreamingAll(std.testing.io, "# This is a comment\n\nKEY=value\n# Another comment\n");
     }
-    defer std.fs.cwd().deleteFile(tmp_path) catch {};
+    defer std.Io.Dir.cwd().deleteFile(std.testing.io, tmp_path) catch {};
 
     var map = try loadEnvFile(allocator, tmp_path);
     defer {
@@ -227,11 +229,12 @@ test "loadEnvFile: strips inline comments" {
 
     const tmp_path = "/tmp/kwtsms_test_env_inline";
     {
-        const f = try std.fs.cwd().createFile(tmp_path, .{});
-        defer f.close();
-        try f.writeAll("SENDER=MY-APP  # my sender ID\n");
+        // 2026-11-15 16:50 +03: test file IO moved to Io.Dir with std.testing.io, zig-017-port
+        const f = try std.Io.Dir.cwd().createFile(std.testing.io, tmp_path, .{});
+        defer f.close(std.testing.io);
+        try f.writeStreamingAll(std.testing.io, "SENDER=MY-APP  # my sender ID\n");
     }
-    defer std.fs.cwd().deleteFile(tmp_path) catch {};
+    defer std.Io.Dir.cwd().deleteFile(std.testing.io, tmp_path) catch {};
 
     var map = try loadEnvFile(allocator, tmp_path);
     defer {
@@ -251,11 +254,12 @@ test "loadEnvFile: values with equals signs" {
 
     const tmp_path = "/tmp/kwtsms_test_env_equals";
     {
-        const f = try std.fs.cwd().createFile(tmp_path, .{});
-        defer f.close();
-        try f.writeAll("PASS=abc=def=ghi\n");
+        // 2026-11-15 16:50 +03: test file IO moved to Io.Dir with std.testing.io, zig-017-port
+        const f = try std.Io.Dir.cwd().createFile(std.testing.io, tmp_path, .{});
+        defer f.close(std.testing.io);
+        try f.writeStreamingAll(std.testing.io, "PASS=abc=def=ghi\n");
     }
-    defer std.fs.cwd().deleteFile(tmp_path) catch {};
+    defer std.Io.Dir.cwd().deleteFile(std.testing.io, tmp_path) catch {};
 
     var map = try loadEnvFile(allocator, tmp_path);
     defer {
@@ -275,13 +279,14 @@ test "loadConfig: values from .env file are owned and survive after return" {
 
     const tmp_path = "/tmp/kwtsms_test_loadconfig_owner";
     {
-        const f = try std.fs.cwd().createFile(tmp_path, .{});
-        defer f.close();
-        try f.writeAll("KWTSMS_USERNAME=cfguser\nKWTSMS_PASSWORD=cfgpass\nKWTSMS_SENDER_ID=TESTSENDER\n");
+        // 2026-11-15 16:50 +03: test file IO moved to Io.Dir with std.testing.io, zig-017-port
+        const f = try std.Io.Dir.cwd().createFile(std.testing.io, tmp_path, .{});
+        defer f.close(std.testing.io);
+        try f.writeStreamingAll(std.testing.io, "KWTSMS_USERNAME=cfguser\nKWTSMS_PASSWORD=cfgpass\nKWTSMS_SENDER_ID=TESTSENDER\n");
     }
-    defer std.fs.cwd().deleteFile(tmp_path) catch {};
+    defer std.Io.Dir.cwd().deleteFile(std.testing.io, tmp_path) catch {};
 
-    const config = try loadConfig(allocator, tmp_path);
+    const config = try loadConfig(allocator, std.testing.environ, tmp_path);
     defer config.deinit(allocator);
 
     // Values must be accessible (not use-after-free) after loadConfig returns
@@ -295,7 +300,7 @@ test "loadConfig: values from .env file are owned and survive after return" {
 
 test "loadConfig: missing file returns empty config" {
     const allocator = std.testing.allocator;
-    const config = try loadConfig(allocator, "/tmp/nonexistent_kwtsms_config_test");
+    const config = try loadConfig(allocator, std.testing.environ, "/tmp/nonexistent_kwtsms_config_test");
     defer config.deinit(allocator);
     try std.testing.expect(config.username == null);
     try std.testing.expect(config.password == null);
@@ -307,13 +312,14 @@ test "loadConfig: test_mode parsed correctly" {
 
     const tmp_path = "/tmp/kwtsms_test_loadconfig_testmode";
     {
-        const f = try std.fs.cwd().createFile(tmp_path, .{});
-        defer f.close();
-        try f.writeAll("KWTSMS_TEST_MODE=1\n");
+        // 2026-11-15 16:50 +03: test file IO moved to Io.Dir with std.testing.io, zig-017-port
+        const f = try std.Io.Dir.cwd().createFile(std.testing.io, tmp_path, .{});
+        defer f.close(std.testing.io);
+        try f.writeStreamingAll(std.testing.io, "KWTSMS_TEST_MODE=1\n");
     }
-    defer std.fs.cwd().deleteFile(tmp_path) catch {};
+    defer std.Io.Dir.cwd().deleteFile(std.testing.io, tmp_path) catch {};
 
-    const config = try loadConfig(allocator, tmp_path);
+    const config = try loadConfig(allocator, std.testing.environ, tmp_path);
     defer config.deinit(allocator);
     try std.testing.expect(config.test_mode);
 }

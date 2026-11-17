@@ -11,7 +11,7 @@
 //            const tn = @import("test_number");
 //            const n = try tn.get(allocator); defer allocator.free(n);
 //            CI reads the value from the repository secret of the same name.
-// DEPENDS:   Zig stdlib only (std.process.getEnvVarOwned, std.fmt). build.zig
+// DEPENDS:   Zig stdlib only (std.testing.environ, std.fmt). build.zig
 //            registers it as module "test_number" on every module that has
 //            tests; only test code uses it, so it is never in the library.
 
@@ -25,7 +25,8 @@ pub const placeholder = "965XXXXXXXX";
 /// error.SkipZigTest when it is unset or malformed. Never print the value.
 /// 2026-11-05 08:52 +03: single source of the test number, int-testnumber.
 pub fn get(allocator: std.mem.Allocator) ![]u8 {
-    const raw = std.process.getEnvVarOwned(allocator, "KWTSMS_TEST_NUMBER") catch return error.SkipZigTest;
+    // 2026-11-15 16:51 +03: std.process.getEnvVarOwned removed; the test runner's std.testing.environ, zig-017-port
+    const raw = std.testing.environ.getAlloc(allocator, "KWTSMS_TEST_NUMBER") catch return error.SkipZigTest;
     defer allocator.free(raw);
     const n = std.mem.trim(u8, raw, " \t\r\n");
     if (n.len != 11 or !std.mem.startsWith(u8, n, "965")) return error.SkipZigTest;
@@ -51,17 +52,18 @@ pub fn split(allocator: std.mem.Allocator, n: []const u8, sep: []const u8) ![]u8
 /// lead/zero_low (Arabic-Indic U+0660 = D9 A0, Persian U+06F0 = DB B0).
 /// 2026-11-05 08:52 +03: native-digit variants, int-testnumber.
 fn shiftRange(allocator: std.mem.Allocator, n: []const u8, start: usize, end: usize, lead: u8, zero_low: u8) ![]u8 {
-    var out = std.ArrayList(u8).init(allocator);
-    errdefer out.deinit();
+    // 2026-11-15 16:51 +03: ArrayList is unmanaged in 0.15+ (.empty, allocator per call), zig-017-port
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(allocator);
     for (n, 0..) |c, i| {
         if (i >= start and i < end and c >= '0' and c <= '9') {
-            try out.append(lead);
-            try out.append(zero_low + (c - '0'));
+            try out.append(allocator, lead);
+            try out.append(allocator, zero_low + (c - '0'));
         } else {
-            try out.append(c);
+            try out.append(allocator, c);
         }
     }
-    return out.toOwnedSlice();
+    return out.toOwnedSlice(allocator);
 }
 
 /// All digits as Arabic-Indic (U+0660-0669). Caller frees.
@@ -79,15 +81,16 @@ pub fn toPersian(allocator: std.mem.Allocator, n: []const u8) ![]u8 {
 /// First 3 and last 3 digits Arabic-Indic, the middle Latin. Caller frees.
 /// 2026-11-05 08:52 +03: mixed-digit variant, int-testnumber.
 pub fn toMixedArabicLatin(allocator: std.mem.Allocator, n: []const u8) ![]u8 {
-    var out = std.ArrayList(u8).init(allocator);
-    errdefer out.deinit();
+    // 2026-11-15 16:51 +03: ArrayList is unmanaged in 0.15+ (.empty, allocator per call), zig-017-port
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(allocator);
     for (n, 0..) |c, i| {
         if ((i < 3 or i >= n.len - 3) and c >= '0' and c <= '9') {
-            try out.append(0xD9);
-            try out.append(0xA0 + (c - '0'));
+            try out.append(allocator, 0xD9);
+            try out.append(allocator, 0xA0 + (c - '0'));
         } else {
-            try out.append(c);
+            try out.append(allocator, c);
         }
     }
-    return out.toOwnedSlice();
+    return out.toOwnedSlice(allocator);
 }

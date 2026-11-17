@@ -9,8 +9,9 @@ const std = @import("std");
 /// 6. Strip HTML tags
 /// Arabic text is preserved.
 pub fn cleanMessage(allocator: std.mem.Allocator, text: []const u8) ![]u8 {
-    var result = std.ArrayList(u8).init(allocator);
-    errdefer result.deinit();
+    // 2026-11-15 16:49 +03: ArrayList is unmanaged in 0.15+ (.empty, allocator per call), zig-017-port
+    var result: std.ArrayList(u8) = .empty;
+    errdefer result.deinit(allocator);
 
     var i: usize = 0;
     while (i < text.len) {
@@ -37,14 +38,14 @@ pub fn cleanMessage(allocator: std.mem.Allocator, text: []const u8) ![]u8 {
 
         // Convert Arabic-Indic digits U+0660-U+0669
         if (cp >= 0x0660 and cp <= 0x0669) {
-            try result.append(@intCast(cp - 0x0660 + '0'));
+            try result.append(allocator, @intCast(cp - 0x0660 + '0'));
             i += cp_len;
             continue;
         }
 
         // Convert Extended Arabic-Indic / Persian digits U+06F0-U+06F9
         if (cp >= 0x06F0 and cp <= 0x06F9) {
-            try result.append(@intCast(cp - 0x06F0 + '0'));
+            try result.append(allocator, @intCast(cp - 0x06F0 + '0'));
             i += cp_len;
             continue;
         }
@@ -74,11 +75,11 @@ pub fn cleanMessage(allocator: std.mem.Allocator, text: []const u8) ![]u8 {
         }
 
         // Keep everything else (including Arabic letters)
-        try result.appendSlice(text[i .. i + cp_len]);
+        try result.appendSlice(allocator, text[i .. i + cp_len]);
         i += cp_len;
     }
 
-    return try result.toOwnedSlice();
+    return try result.toOwnedSlice(allocator);
 }
 
 fn isEmoji(cp: u21) bool {

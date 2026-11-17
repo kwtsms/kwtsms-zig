@@ -148,8 +148,9 @@ pub fn validatePhoneFormat(allocator: std.mem.Allocator, normalized: []const u8)
     }
     if (!valid_len) {
         var exp_buf: [32]u8 = undefined;
-        var fbs = std.io.fixedBufferStream(&exp_buf);
-        const w = fbs.writer();
+        // 2026-11-15 16:49 +03: std.io.fixedBufferStream removed; std.Io.Writer.fixed, zig-017-port
+        var fbs = std.Io.Writer.fixed(&exp_buf);
+        const w = &fbs;
         for (rule.local_lengths, 0..) |l, i| {
             if (i > 0) try w.writeAll(" or ");
             try w.print("{d}", .{l});
@@ -157,7 +158,7 @@ pub fn validatePhoneFormat(allocator: std.mem.Allocator, normalized: []const u8)
         return try std.fmt.allocPrint(
             allocator,
             "Invalid +{s} number: expected {s} local digits after country code, got {d}",
-            .{ cc, fbs.getWritten(), local.len },
+            .{ cc, fbs.buffered(), local.len },
         );
     }
 
@@ -172,8 +173,9 @@ pub fn validatePhoneFormat(allocator: std.mem.Allocator, normalized: []const u8)
         }
         if (!valid_prefix) {
             var starts_buf: [32]u8 = undefined;
-            var fbs = std.io.fixedBufferStream(&starts_buf);
-            const w = fbs.writer();
+            // 2026-11-15 16:49 +03: std.io.fixedBufferStream removed; std.Io.Writer.fixed, zig-017-port
+            var fbs = std.Io.Writer.fixed(&starts_buf);
+            const w = &fbs;
             for (rule.mobile_start, 0..) |c, i| {
                 if (i > 0) try w.writeAll(", ");
                 try w.print("{c}", .{c});
@@ -181,7 +183,7 @@ pub fn validatePhoneFormat(allocator: std.mem.Allocator, normalized: []const u8)
             return try std.fmt.allocPrint(
                 allocator,
                 "Invalid +{s} mobile number: must start with {s} after +{s}",
-                .{ cc, fbs.getWritten(), cc },
+                .{ cc, fbs.buffered(), cc },
             );
         }
     }
@@ -199,8 +201,9 @@ pub fn validatePhoneFormat(allocator: std.mem.Allocator, normalized: []const u8)
 ///      e.g. 9660559xxxx (Saudi with trunk 0) -> 966559xxxx
 ///           97105xxxxxxx (UAE with trunk 0) -> 9715xxxxxxx
 pub fn normalizePhone(allocator: std.mem.Allocator, phone: []const u8) ![]u8 {
-    var result = std.ArrayList(u8).init(allocator);
-    errdefer result.deinit();
+    // 2026-11-15 16:49 +03: ArrayList is unmanaged in 0.15+ (.empty, allocator per call), zig-017-port
+    var result: std.ArrayList(u8) = .empty;
+    errdefer result.deinit(allocator);
 
     const trimmed = std.mem.trim(u8, phone, " \t\r\n");
 
@@ -219,15 +222,15 @@ pub fn normalizePhone(allocator: std.mem.Allocator, phone: []const u8) ![]u8 {
 
         // Arabic-Indic digits U+0660-U+0669
         if (cp >= 0x0660 and cp <= 0x0669) {
-            try result.append(@intCast(cp - 0x0660 + '0'));
+            try result.append(allocator, @intCast(cp - 0x0660 + '0'));
         }
         // Extended Arabic-Indic / Persian digits U+06F0-U+06F9
         else if (cp >= 0x06F0 and cp <= 0x06F9) {
-            try result.append(@intCast(cp - 0x06F0 + '0'));
+            try result.append(allocator, @intCast(cp - 0x06F0 + '0'));
         }
         // ASCII digits
         else if (cp >= '0' and cp <= '9') {
-            try result.append(@intCast(cp));
+            try result.append(allocator, @intCast(cp));
         }
         // Skip all other characters (spaces, +, dashes, dots, parens, etc.)
 
@@ -241,7 +244,7 @@ pub fn normalizePhone(allocator: std.mem.Allocator, phone: []const u8) ![]u8 {
     }
 
     if (start == result.items.len) {
-        result.clearAndFree();
+        result.clearAndFree(allocator);
         return try allocator.alloc(u8, 0);
     }
 
@@ -273,7 +276,7 @@ pub fn normalizePhone(allocator: std.mem.Allocator, phone: []const u8) ![]u8 {
         }
     }
 
-    return try result.toOwnedSlice();
+    return try result.toOwnedSlice(allocator);
 }
 
 /// Validate a phone number input. Returns a validation result with the normalized form.

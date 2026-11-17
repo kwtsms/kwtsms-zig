@@ -4,7 +4,7 @@
 
 ### Prerequisites
 
-- [Zig 0.13+](https://ziglang.org/download/)
+- [Zig 0.17+](https://ziglang.org/download/)
 
 ### Build and Test
 
