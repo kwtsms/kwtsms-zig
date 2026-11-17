@@ -20,7 +20,8 @@ We will acknowledge your report within 48 hours and provide a timeline for a fix
 
 | Version | Supported |
 |---------|-----------|
-| 0.1.x   | Yes       |
+| 0.6.x   | Yes       |
+| < 0.6   | No        |
 
 ## Security Best Practices
 

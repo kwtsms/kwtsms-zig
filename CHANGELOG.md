@@ -7,7 +7,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [0.6.0] - 2026-11-17
+
+This release needs Zig 0.17 or later. On an older Zig, stay on 0.5.0.
 
 ### Changed
 

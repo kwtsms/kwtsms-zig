@@ -2,7 +2,8 @@
     // 2026-11-15 16:44 +03: .name is an enum literal in Zig 0.14+; .fingerprint is required, zig-017-port
     .name = .kwtsms,
     .fingerprint = 0x33b6b64b2d2da2f5,
-    .version = "0.5.0",
+    // 2026-11-17 15:12 +03: 0.6.0 release (Zig 0.17 minimum), workqueue job 69, Boss 1175
+    .version = "0.6.0",
     .minimum_zig_version = "0.17.0",
     .paths = .{
         "build.zig",
