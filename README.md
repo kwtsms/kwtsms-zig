@@ -36,7 +36,7 @@ Add to your `build.zig.zon`:
 ```zig
 .dependencies = .{
     .kwtsms = .{
-        .url = "https://github.com/kwtsms/kwtsms-zig/archive/refs/tags/v0.3.0.tar.gz",
+        .url = "https://github.com/kwtsms/kwtsms-zig/archive/refs/tags/v0.6.0.tar.gz",
         .hash = "...", // run `zig fetch --save` to populate this automatically
     },
 },
