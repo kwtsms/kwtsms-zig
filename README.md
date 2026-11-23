@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/readme-header-dark.png">
+  <img alt="kwtSMS for Zig: SMS and OTP through kwtSMS" src=".github/assets/readme-header-light.png">
+</picture>
+
 # kwtSMS Zig Client
 
 [![CI](https://github.com/kwtsms/kwtsms-zig/actions/workflows/ci.yml/badge.svg)](https://github.com/kwtsms/kwtsms-zig/actions/workflows/ci.yml)
